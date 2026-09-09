@@ -8,11 +8,12 @@ Production-style microservice monitoring and observability platform with Prometh
 
 This project demonstrates a production-oriented monitoring and observability platform designed around a distributed microservice application.
 
-The platform progressively introduces application services, database persistence, health monitoring, metrics collection, centralized alerting, structured logging, incident analysis, and AI-assisted AIOps capabilities.
+The platform progressively introduces application services, database persistence, API gateway routing, health monitoring, metrics collection, centralized alerting, structured logging, incident analysis, and AI-assisted AIOps capabilities.
 
 The system is designed around a clear separation of responsibilities:
 
 * **Applications** generate business traffic, metrics, logs, and health information.
+* **API Gateway** provides a centralized client-facing entry point and propagates distributed request context.
 * **Observability components** collect and visualize operational data.
 * **Alerting components** detect defined failure conditions.
 * **AI components** analyze incident context and provide recommendations.
@@ -22,7 +23,7 @@ The AI layer is therefore designed as a **read-only decision-support system**, r
 
 ## Architecture
 
-The planned platform architecture is:
+The current application architecture is:
 
 ```text
                          ┌─────────────────────┐
@@ -33,6 +34,7 @@ The planned platform architecture is:
                          ┌─────────────────────┐
                          │    API Gateway      │
                          │    Spring Boot      │
+                         │       :8082         │
                          └───────┬─────┬───────┘
                                  │     │
                     ┌────────────┘     └────────────┐
@@ -55,8 +57,8 @@ The planned platform architecture is:
                               │
                               ▼
                     ┌─────────────────────┐
-                    │     Observability    │
-                    │       Pipeline       │
+                    │     Observability   │
+                    │       Pipeline      │
                     └──────────┬──────────┘
                                │
               ┌────────────────┼────────────────┐
@@ -72,7 +74,9 @@ The planned platform architecture is:
                                       AI Incident Analyzer
 ```
 
-The architecture will evolve as additional observability and AIOps stages are implemented.
+The API Gateway currently provides the single client-facing entry point for the business services.
+
+The observability and AIOps layers will be progressively connected to the application traffic as later stages are implemented.
 
 ## Technology Stack
 
@@ -85,6 +89,15 @@ The architecture will evolve as additional observability and AIOps stages are im
 * Hibernate
 * PostgreSQL 17
 * Flyway
+
+### API Gateway
+
+* Spring Boot
+* Spring Web
+* Spring `RestClient`
+* Servlet Filters
+* Correlation ID propagation
+* Centralized downstream error handling
 
 ### Containerization
 
@@ -115,10 +128,88 @@ The architecture will evolve as additional observability and AIOps stages are im
 monitoring-observability-platform/
 │
 ├── gateway/
+│   ├── .mvn/
+│   │   └── wrapper/
+│   │       └── maven-wrapper.properties
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/
+│   │   │   │   └── com/ananyapraneet/monitoring/gateway/
+│   │   │   │       ├── config/
+│   │   │   │       │   └── RestClientConfig.java
+│   │   │   │       ├── controller/
+│   │   │   │       │   ├── OrderGatewayController.java
+│   │   │   │       │   └── UserGatewayController.java
+│   │   │   │       ├── exception/
+│   │   │   │       │   └── GatewayExceptionHandler.java
+│   │   │   │       ├── filter/
+│   │   │   │       │   ├── CorrelationIdFilter.java
+│   │   │   │       │   └── RequestLoggingFilter.java
+│   │   │   │       └── GatewayApplication.java
+│   │   │   └── resources/
+│   │   │       └── application.yaml
+│   │   └── test/
+│   │       └── java/
+│   │           └── com/ananyapraneet/monitoring/gateway/
+│   │               └── GatewayApplicationTests.java
+│   ├── pom.xml
+│   ├── mvnw
+│   ├── mvnw.cmd
+│   └── HELP.md
 │
 ├── user-service/
+│   ├── .mvn/
+│   │   └── wrapper/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/
+│   │   │   │   └── com/ananyapraneet/monitoring/userservice/
+│   │   │   │       ├── controller/
+│   │   │   │       ├── dto/
+│   │   │   │       ├── entity/
+│   │   │   │       ├── exception/
+│   │   │   │       ├── repository/
+│   │   │   │       ├── service/
+│   │   │   │       └── UserServiceApplication.java
+│   │   │   └── resources/
+│   │   │       ├── db/
+│   │   │       │   └── migration/
+│   │   │       │       └── V1__create_users_table.sql
+│   │   │       └── application.yml
+│   │   └── test/
+│   │       └── java/
+│   │           └── com/ananyapraneet/monitoring/userservice/
+│   ├── pom.xml
+│   ├── mvnw
+│   ├── mvnw.cmd
+│   └── HELP.md
 │
 ├── order-service/
+│   ├── .mvn/
+│   │   └── wrapper/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/
+│   │   │   │   └── com/ananyapraneet/monitoring/orderservice/
+│   │   │   │       ├── controller/
+│   │   │   │       ├── dto/
+│   │   │   │       ├── entity/
+│   │   │   │       ├── exception/
+│   │   │   │       ├── repository/
+│   │   │   │       ├── service/
+│   │   │   │       └── OrderServiceApplication.java
+│   │   │   └── resources/
+│   │   │       ├── db/
+│   │   │       │   └── migration/
+│   │   │       │       └── V1__create_orders_table.sql
+│   │   │       └── application.yaml
+│   │   └── test/
+│   │       └── java/
+│   │           └── com/ananyapraneet/monitoring/orderservice/
+│   ├── pom.xml
+│   ├── mvnw
+│   ├── mvnw.cmd
+│   └── HELP.md
 │
 ├── monitoring/
 │   ├── prometheus/
@@ -132,6 +223,8 @@ monitoring-observability-platform/
 ├── README.md
 └── .gitignore
 ```
+
+The detailed service structure will continue to evolve as additional stages introduce observability, logging, and AIOps components.
 
 ## Implemented Services
 
@@ -239,24 +332,168 @@ The Order Service runs on:
 http://localhost:8081
 ```
 
-### Service Independence
+### API Gateway
 
-The platform currently contains two independently deployable Spring Boot services:
+The API Gateway provides a centralized entry point for clients accessing the business services.
+
+The Gateway runs on:
 
 ```text
-                    PostgreSQL
-                        │
-              ┌─────────┴─────────┐
-              │                   │
-              ▼                   ▼
-        User Service         Order Service
-          :8080                  :8081
-              │                   │
-              ▼                   ▼
-        public schema       order_service schema
+http://localhost:8082
 ```
 
-Both services use the same PostgreSQL instance during local development while maintaining **separate database schemas and Flyway migration histories**.
+#### User Routes
+
+```text
+POST   /api/users
+GET    /api/users
+GET    /api/users/{id}
+DELETE /api/users/{id}
+```
+
+These routes are forwarded to the User Service:
+
+```text
+/api/users/* → http://localhost:8080/users/*
+```
+
+#### Order Routes
+
+```text
+POST   /api/orders
+GET    /api/orders
+GET    /api/orders/{id}
+PUT    /api/orders/{id}
+DELETE /api/orders/{id}
+```
+
+These routes are forwarded to the Order Service:
+
+```text
+/api/orders/* → http://localhost:8081/orders/*
+```
+
+The Gateway currently provides:
+
+* Centralized client-facing entry point
+* Request routing
+* Request forwarding
+* Correlation ID generation
+* Correlation ID preservation
+* Correlation ID propagation
+* Basic request logging
+* Downstream HTTP error propagation
+* Gateway health endpoint
+* Configurable downstream service URLs
+
+### Correlation IDs
+
+The Gateway uses the:
+
+```text
+X-Correlation-ID
+```
+
+HTTP header to associate requests across the distributed application.
+
+If a client provides a correlation ID, the Gateway preserves it.
+
+If no correlation ID is provided, the Gateway generates a UUID.
+
+The correlation ID is also forwarded to downstream services through the Gateway's `RestClient` configuration.
+
+Example:
+
+```text
+Client
+  │
+  │ X-Correlation-ID: abc-123
+  ▼
+API Gateway
+  │
+  │ X-Correlation-ID: abc-123
+  ▼
+Order Service
+```
+
+This establishes the foundation for distributed request observability and structured logging in later stages.
+
+### Gateway Request Logging
+
+The Gateway currently performs basic request-completion logging.
+
+Example:
+
+```text
+Request completed: method=GET uri=/api/orders/2 status=200 correlationId=test-correlation-789
+```
+
+The request logging filter records:
+
+* HTTP method
+* Request URI
+* HTTP response status
+* Correlation ID
+
+More comprehensive structured application logging will be introduced during the dedicated logging stage.
+
+### Gateway Error Handling
+
+The Gateway propagates HTTP errors returned by downstream services.
+
+For example, if the Order Service returns:
+
+```text
+HTTP 404 Not Found
+```
+
+for a missing order, the Gateway preserves the downstream status and response body.
+
+Example:
+
+```text
+Client
+   │
+   ▼
+API Gateway
+   │
+   ▼
+Order Service
+   │
+   └── 404 Not Found
+           │
+           ▼
+      API Gateway
+           │
+           ▼
+        Client
+```
+
+This prevents downstream application errors from being converted into generic Gateway `500 Internal Server Error` responses.
+
+## Service Independence
+
+The platform currently contains two independently deployable Spring Boot business services and one API Gateway:
+
+```text
+                         API Gateway
+                            :8082
+                              │
+                    ┌─────────┴─────────┐
+                    │                   │
+                    ▼                   ▼
+              User Service        Order Service
+                 :8080                 :8081
+                    │                   │
+                    ▼                   ▼
+              public schema       order_service schema
+                    │                   │
+                    └─────────┬─────────┘
+                              ▼
+                         PostgreSQL
+```
+
+Both business services use the same PostgreSQL instance during local development while maintaining **separate database schemas and Flyway migration histories**.
 
 This provides service-level schema isolation while keeping the local development environment lightweight.
 
@@ -333,7 +570,7 @@ Flyway remains responsible for database schema evolution.
 
 ## Health Checks
 
-Spring Boot Actuator provides health endpoints for both services.
+Spring Boot Actuator provides health endpoints for the services and Gateway.
 
 ### User Service
 
@@ -345,6 +582,12 @@ GET http://localhost:8080/actuator/health
 
 ```text
 GET http://localhost:8081/actuator/health
+```
+
+### API Gateway
+
+```text
+GET http://localhost:8082/actuator/health
 ```
 
 Example response:
@@ -359,7 +602,9 @@ These health endpoints will later become part of the broader service-health moni
 
 ## Error Handling
 
-Both business services use centralized exception handling for common API failures.
+The business services use centralized exception handling for common API failures.
+
+The API Gateway additionally propagates downstream HTTP errors to clients.
 
 ### Validation Failure
 
@@ -411,15 +656,35 @@ Updated order with id=... to status=...
 Deleted order with id=...
 ```
 
+The API Gateway also currently logs completed HTTP requests with:
+
+```text
+method
+URI
+status
+correlationId
+```
+
 These logs establish the foundation for the structured logging and centralized incident-analysis pipeline that will be introduced in later observability stages.
 
 Full JSON-based structured logging is intentionally deferred to the dedicated logging stage.
 
 ## Testing
 
-The Order Service contains unit, web-layer, and application-context tests.
+The platform currently contains automated tests for the User Service, Order Service, and API Gateway.
 
-Current test coverage includes:
+### Order Service
+
+The current Order Service test suite contains:
+
+```text
+15 tests
+15 passed
+0 failures
+0 errors
+```
+
+Current coverage includes:
 
 * Application context startup
 * Order creation
@@ -433,23 +698,16 @@ Current test coverage includes:
 * Controller request/response behavior
 * Service-layer repository interactions
 
-The current Order Service test suite contains:
-
-```text
-15 tests
-15 passed
-0 failures
-0 errors
-```
-
-Run the complete test suite with:
+Run the Order Service tests with:
 
 ```bash
 cd order-service
 ./mvnw clean test
 ```
 
-The User Service currently contains:
+### User Service
+
+The current User Service test suite contains:
 
 ```text
 8 tests
@@ -464,6 +722,40 @@ Run the User Service tests with:
 cd user-service
 ./mvnw clean test
 ```
+
+### API Gateway
+
+The current Gateway test suite contains:
+
+```text
+1 test
+1 passed
+0 failures
+0 errors
+```
+
+Run the Gateway tests with:
+
+```bash
+cd gateway
+./mvnw clean test
+```
+
+The Gateway was also manually verified through end-to-end requests to both business services, including:
+
+* User creation through Gateway
+* User retrieval through Gateway
+* User listing through Gateway
+* User deletion through Gateway
+* Order creation through Gateway
+* Order retrieval through Gateway
+* Order listing through Gateway
+* Order update through Gateway
+* Order deletion through Gateway
+* Downstream `404` propagation
+* Correlation ID preservation
+* Correlation ID forwarding
+* Basic request logging
 
 ## Local Development
 
@@ -527,7 +819,37 @@ The service starts on:
 http://localhost:8081
 ```
 
-Both services can therefore run simultaneously during local development.
+### Run API Gateway
+
+Open another terminal and navigate to:
+
+```bash
+cd gateway
+```
+
+Run:
+
+```bash
+./mvnw spring-boot:run
+```
+
+The Gateway starts on:
+
+```text
+http://localhost:8082
+```
+
+The recommended client flow is now:
+
+```text
+Client
+  ↓
+API Gateway :8082
+  ↓
+User Service :8080
+       OR
+Order Service :8081
+```
 
 ## User Service API Examples
 
@@ -619,6 +941,120 @@ curl -i -X PUT http://localhost:8081/orders/1 \
 curl -i -X DELETE http://localhost:8081/orders/1
 ```
 
+## API Gateway Examples
+
+The Gateway provides the preferred client-facing API.
+
+### Gateway Health Check
+
+```bash
+curl -i http://localhost:8082/actuator/health
+```
+
+### Create a User Through Gateway
+
+```bash
+curl -i -X POST http://localhost:8082/api/users \
+  -H "Content-Type: application/json" \
+  -H "X-Correlation-ID: user-request-001" \
+  -d '{
+    "name": "John Doe",
+    "email": "john.doe@example.com"
+  }'
+```
+
+### Get a User Through Gateway
+
+```bash
+curl -i http://localhost:8082/api/users/1 \
+  -H "X-Correlation-ID: user-request-002"
+```
+
+### Get All Users Through Gateway
+
+```bash
+curl -i http://localhost:8082/api/users \
+  -H "X-Correlation-ID: user-request-003"
+```
+
+### Delete a User Through Gateway
+
+```bash
+curl -i -X DELETE http://localhost:8082/api/users/1 \
+  -H "X-Correlation-ID: user-request-004"
+```
+
+### Create an Order Through Gateway
+
+```bash
+curl -i -X POST http://localhost:8082/api/orders \
+  -H "Content-Type: application/json" \
+  -H "X-Correlation-ID: order-request-001" \
+  -d '{
+    "userId": 1,
+    "product": "Mechanical Keyboard",
+    "quantity": 1,
+    "amount": 129.99
+  }'
+```
+
+### Get an Order Through Gateway
+
+```bash
+curl -i http://localhost:8082/api/orders/1 \
+  -H "X-Correlation-ID: order-request-002"
+```
+
+### Get All Orders Through Gateway
+
+```bash
+curl -i http://localhost:8082/api/orders \
+  -H "X-Correlation-ID: order-request-003"
+```
+
+### Update an Order Through Gateway
+
+```bash
+curl -i -X PUT http://localhost:8082/api/orders/1 \
+  -H "Content-Type: application/json" \
+  -H "X-Correlation-ID: order-request-004" \
+  -d '{
+    "userId": 1,
+    "product": "Mechanical Keyboard",
+    "quantity": 2,
+    "amount": 259.98,
+    "status": "PROCESSING"
+  }'
+```
+
+### Delete an Order Through Gateway
+
+```bash
+curl -i -X DELETE http://localhost:8082/api/orders/1 \
+  -H "X-Correlation-ID: order-request-005"
+```
+
+### Verify Correlation ID
+
+A request with an explicit correlation ID:
+
+```bash
+curl -i http://localhost:8082/api/orders/2 \
+  -H "X-Correlation-ID: test-correlation-789"
+```
+
+returns the same correlation ID in the response:
+
+```text
+X-Correlation-ID: test-correlation-789
+```
+
+The Gateway also records the request:
+
+```text
+Request completed: method=GET uri=/api/orders/2 status=200 correlationId=test-correlation-789
+```
+
 ## Observability Roadmap
 
 The platform will progressively add:
@@ -638,6 +1074,8 @@ The platform will progressively add:
 13. Failure simulation
 14. Incident recovery workflows
 15. Incident history
+
+The complete project roadmap also includes testing, security hardening, CI/CD, and portfolio documentation.
 
 ## AI Incident Intelligence
 
@@ -706,7 +1144,7 @@ This provides a realistic demonstration of an end-to-end observability and AIOps
 
 ## Project Status
 
-**Stage 3 — Order Service** ✅
+**Stage 4 — API Gateway** ✅
 
 Completed stages:
 
@@ -751,12 +1189,36 @@ Completed stages:
 * Manual API verification
 * 15/15 automated tests passing
 
+### Stage 4 — API Gateway ✅
+
+* Spring Boot API Gateway
+* Centralized client-facing entry point
+* User Service routing
+* Order Service routing
+* Request forwarding using Spring `RestClient`
+* Correlation ID generation
+* Correlation ID preservation
+* Correlation ID propagation to downstream services
+* Basic request-completion logging
+* Downstream HTTP error propagation
+* Gateway health endpoint
+* Configurable User Service URL
+* Configurable Order Service URL
+* Gateway application-context test
+* End-to-end routing verification
+* Correlation ID verification
+* Request logging verification
+* 1/1 automated tests passing
+
 ### Current Architecture
 
 The application layer now consists of:
 
 ```text
 Client
+  │
+  ▼
+API Gateway (:8082)
   │
   ├──────────────► User Service (:8080)
   │
@@ -766,22 +1228,27 @@ Client
                     PostgreSQL
 ```
 
-The API Gateway will be introduced in the next stage to provide a single entry point for these services.
+The API Gateway now acts as the single entry point for client traffic.
+
+Correlation IDs and basic request logging establish the initial foundation for distributed observability.
 
 ### Next Stage
 
-**Stage 4 — API Gateway** 🚧
+**Stage 5 — Dockerization & Local Platform** 🚧
 
-The next stage will introduce a Spring Boot API Gateway that provides a unified entry point for the User Service and Order Service.
+The next stage will containerize the application services and establish the local multi-service platform using Docker Compose.
 
 Planned responsibilities include:
 
-* Single client-facing entry point
-* Request routing
-* Service discovery / routing configuration
-* Request forwarding
-* Gateway-level health monitoring
-* Foundation for future distributed request observability
+* Dockerfiles for application services
+* Containerized API Gateway
+* Containerized User Service
+* Containerized Order Service
+* PostgreSQL container integration
+* Inter-service networking
+* Environment-based service configuration
+* Container health checks
+* Reproducible local platform startup
 
 ## License
 

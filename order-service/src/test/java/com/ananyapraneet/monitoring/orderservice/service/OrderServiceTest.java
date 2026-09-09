@@ -20,6 +20,13 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -28,10 +35,12 @@ class OrderServiceTest {
     private OrderRepository orderRepository;
 
     private OrderService orderService;
+    private MeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository);
+        meterRegistry = new SimpleMeterRegistry();
+        orderService = new OrderService(orderRepository, meterRegistry);
     }
 
     @Test
@@ -50,7 +59,7 @@ class OrderServiceTest {
         savedOrder.setAmount(new BigDecimal("259.98"));
         savedOrder.setStatus(OrderStatus.CREATED);
 
-        when(orderRepository.save(any(Order.class))).thenReturn(savedOrder);
+        when(orderRepository.saveAndFlush(any(Order.class))).thenReturn(savedOrder);
 
         OrderResponse response = orderService.createOrder(request);
 
@@ -60,7 +69,33 @@ class OrderServiceTest {
         assertEquals(new BigDecimal("259.98"), response.amount());
         assertEquals(OrderStatus.CREATED, response.status());
 
-        verify(orderRepository).save(any(Order.class));
+        verify(orderRepository).saveAndFlush(any(Order.class));
+    }
+
+    @Test
+    void createOrder_shouldIncrementFailedCounterWhenSaveAndFlushFails() {
+        CreateOrderRequest request = new CreateOrderRequest(
+                1L,
+                "Failure Test Product",
+                1,
+                new BigDecimal("99.99")
+        );
+
+        RuntimeException exception = new RuntimeException("Database failure");
+
+        when(orderRepository.saveAndFlush(any(Order.class)))
+                .thenThrow(exception);
+
+        assertThrows(
+                RuntimeException.class,
+                () -> orderService.createOrder(request)
+        );
+
+        assertThat(
+                meterRegistry.get("orders_failed_total")
+                        .counter()
+                        .count()
+        ).isEqualTo(1.0);
     }
 
     @Test

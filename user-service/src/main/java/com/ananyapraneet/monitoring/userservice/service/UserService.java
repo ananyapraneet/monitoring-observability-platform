@@ -8,6 +8,7 @@ import com.ananyapraneet.monitoring.userservice.exception.UserNotFoundException;
 import com.ananyapraneet.monitoring.userservice.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.Counter;
 
 import java.util.List;
 
@@ -16,9 +17,16 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final Counter userCreationCounter;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(
+            UserRepository userRepository,
+            io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+
         this.userRepository = userRepository;
+        this.userCreationCounter = Counter.builder("user_creation_total")
+                .description("Total number of users successfully created")
+                .register(meterRegistry);
     }
 
     public UserResponse createUser(CreateUserRequest request) {
@@ -30,6 +38,7 @@ public class UserService {
 
         User user = new User(request.name(), request.email());
         User savedUser = userRepository.save(user);
+        userCreationCounter.increment();
 
         return toResponse(savedUser);
     }

@@ -6,6 +6,8 @@ import com.ananyapraneet.monitoring.userservice.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.net.URI;
 import java.util.List;
@@ -15,9 +17,17 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final Counter serviceRequestsCounter;
 
-    public UserController(UserService userService) {
+    public UserController(
+            UserService userService,
+            MeterRegistry meterRegistry) {
+
         this.userService = userService;
+
+        this.serviceRequestsCounter = Counter.builder("service_requests_total")
+                .description("Total number of requests handled by the User Service")
+                .register(meterRegistry);
     }
 
     @PostMapping
@@ -25,6 +35,8 @@ public class UserController {
             @Valid @RequestBody CreateUserRequest request) {
 
         UserResponse createdUser = userService.createUser(request);
+
+        serviceRequestsCounter.increment();
 
         return ResponseEntity
                 .created(URI.create("/users/" + createdUser.id()))
@@ -35,6 +47,8 @@ public class UserController {
     public ResponseEntity<UserResponse> getUserById(
             @PathVariable Long id) {
 
+        serviceRequestsCounter.increment();
+
         return ResponseEntity.ok(
                 userService.getUserById(id)
         );
@@ -42,6 +56,8 @@ public class UserController {
 
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers() {
+
+        serviceRequestsCounter.increment();
 
         return ResponseEntity.ok(
                 userService.getAllUsers()
@@ -51,6 +67,8 @@ public class UserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(
             @PathVariable Long id) {
+
+        serviceRequestsCounter.increment();
 
         userService.deleteUser(id);
 

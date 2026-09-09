@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/monitoring}
+    username: ${DB_USERNAME:monitoring}
+    password: ${DB_PASSWORD:monitoring}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

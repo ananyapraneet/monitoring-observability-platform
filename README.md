@@ -8,7 +8,7 @@ Production-style microservice monitoring and observability platform with Prometh
 
 This project demonstrates a production-oriented monitoring and observability platform designed around a distributed microservice application.
 
-The platform will progressively introduce application monitoring, metrics collection, centralized alerting, structured logging, incident analysis, and AI-assisted AIOps capabilities.
+The platform progressively introduces application services, database persistence, health monitoring, metrics collection, centralized alerting, structured logging, incident analysis, and AI-assisted AIOps capabilities.
 
 The system is designed around a clear separation of responsibilities:
 
@@ -40,43 +40,50 @@ The planned platform architecture is:
           ┌──────────────────┐             ┌──────────────────┐
           │   User Service   │             │   Order Service  │
           │    Spring Boot   │             │    Spring Boot   │
+          │     :8080        │             │     :8081        │
           └────────┬─────────┘             └────────┬─────────┘
                    │                                │
-                   └───────────────┬────────────────┘
-                                   ▼
-                         ┌─────────────────────┐
-                         │     PostgreSQL      │
-                         └─────────────────────┘
+                   ▼                                ▼
+          ┌──────────────────┐             ┌──────────────────┐
+          │    PostgreSQL    │             │    PostgreSQL    │
+          │  public schema   │             │ order_service    │
+          └──────────────────┘             │     schema       │
+                                           └──────────────────┘
 
 
-Application Metrics
-        │
-        ▼
-┌─────────────────────┐
-│     Prometheus      │
-└──────────┬──────────┘
-           │
-           ├──────────────► Grafana
-           │
-           └──────────────► Alertmanager
-                                  │
-                                  ▼
-                         Incident Context Builder
-                                  │
-                                  ▼
-                         AI Incident Analyzer
+                    Application Metrics / Logs / Health
+                              │
+                              ▼
+                    ┌─────────────────────┐
+                    │     Observability    │
+                    │       Pipeline       │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+       ┌─────────────┐  ┌─────────────┐  ┌──────────────┐
+       │ Prometheus  │  │   Grafana   │  │ Alertmanager │
+       └─────────────┘  └─────────────┘  └──────┬───────┘
+                                                │
+                                                ▼
+                                    Incident Context Builder
+                                                │
+                                                ▼
+                                      AI Incident Analyzer
 ```
+
+The architecture will evolve as additional observability and AIOps stages are implemented.
 
 ## Technology Stack
 
 ### Application
 
 * Java 17
-* Spring Boot
+* Spring Boot 4.1.1
 * Spring Web
 * Spring Data JPA
 * Hibernate
-* PostgreSQL
+* PostgreSQL 17
 * Flyway
 
 ### Containerization
@@ -86,11 +93,11 @@ Application Metrics
 
 ### Observability
 
+* Spring Boot Actuator
 * Micrometer
 * Prometheus
 * Grafana
 * Alertmanager
-* Spring Boot Actuator
 
 ### AI / AIOps
 
@@ -166,35 +173,181 @@ The service includes:
 * Transaction management
 * Actuator health endpoint
 
+The User Service runs on:
+
+```text
+http://localhost:8080
+```
+
+### Order Service
+
+The Order Service is the second independently deployable business service in the platform.
+
+It currently provides:
+
+```text
+POST   /orders
+GET    /orders
+GET    /orders/{id}
+PUT    /orders/{id}
+DELETE /orders/{id}
+```
+
+#### Order Model
+
+```text
+id
+userId
+product
+quantity
+amount
+status
+createdAt
+updatedAt
+```
+
+#### Order Status
+
+Orders support the following lifecycle states:
+
+```text
+CREATED
+PROCESSING
+COMPLETED
+CANCELLED
+```
+
+The service includes:
+
+* REST API
+* DTO-based request and response models
+* Request validation
+* PostgreSQL persistence
+* Spring Data JPA
+* Hibernate entity mapping
+* Flyway database migrations
+* Dedicated database schema
+* Global exception handling
+* Structured HTTP error responses
+* Transaction management
+* Application-level logging
+* Actuator health endpoint
+
+The Order Service runs on:
+
+```text
+http://localhost:8081
+```
+
+### Service Independence
+
+The platform currently contains two independently deployable Spring Boot services:
+
+```text
+                    PostgreSQL
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+              ▼                   ▼
+        User Service         Order Service
+          :8080                  :8081
+              │                   │
+              ▼                   ▼
+        public schema       order_service schema
+```
+
+Both services use the same PostgreSQL instance during local development while maintaining **separate database schemas and Flyway migration histories**.
+
+This provides service-level schema isolation while keeping the local development environment lightweight.
+
 ## Database
 
 The platform currently uses PostgreSQL as its primary relational database.
 
-The User Service uses Flyway for database schema management.
+PostgreSQL is started through Docker Compose:
 
-Current migration:
+```bash
+docker compose up -d postgres
+```
+
+### User Service Schema
+
+The User Service currently uses the PostgreSQL `public` schema.
+
+Its initial migration is:
 
 ```text
 V1__create_users_table.sql
 ```
 
-Hibernate is configured with:
+The migration creates the `users` table with:
+
+```text
+id
+name
+email
+created_at
+updated_at
+```
+
+The email column is protected by a unique constraint.
+
+### Order Service Schema
+
+The Order Service uses a dedicated:
+
+```text
+order_service
+```
+
+schema.
+
+Its initial migration is:
+
+```text
+V1__create_orders_table.sql
+```
+
+The migration creates the `orders` table with:
+
+```text
+id
+user_id
+product
+quantity
+amount
+status
+created_at
+updated_at
+```
+
+The Order Service is configured with:
 
 ```text
 ddl-auto: validate
 ```
 
-This ensures that Hibernate validates the existing database schema rather than modifying it automatically.
+Hibernate therefore validates the existing schema rather than modifying it automatically.
+
+Flyway remains responsible for database schema evolution.
 
 ## Health Checks
 
-Spring Boot Actuator provides the initial health endpoint:
+Spring Boot Actuator provides health endpoints for both services.
+
+### User Service
 
 ```text
-GET /actuator/health
+GET http://localhost:8080/actuator/health
 ```
 
-Example:
+### Order Service
+
+```text
+GET http://localhost:8081/actuator/health
+```
+
+Example response:
 
 ```json
 {
@@ -202,52 +355,101 @@ Example:
 }
 ```
 
-The health endpoint will later become part of the broader observability and service-health monitoring system.
+These health endpoints will later become part of the broader service-health monitoring and failure-detection system.
 
 ## Error Handling
 
-The User Service provides centralized exception handling for common API failures.
+Both business services use centralized exception handling for common API failures.
 
-Examples include:
-
-### Validation failure
+### Validation Failure
 
 ```text
 HTTP 400 Bad Request
 ```
 
-### Duplicate user
+Example validation scenarios include:
 
-```text
-HTTP 409 Conflict
-```
+* Missing required fields
+* Blank product or name values
+* Invalid quantity
+* Invalid amount
+* Invalid email
 
-### User not found
+### Resource Not Found
 
 ```text
 HTTP 404 Not Found
 ```
 
-### Successful deletion
+### Duplicate User
+
+The User Service returns:
+
+```text
+HTTP 409 Conflict
+```
+
+when attempting to create a user with an existing email address.
+
+### Successful Deletion
+
+Successful deletion returns:
 
 ```text
 HTTP 204 No Content
 ```
 
+## Application Logging
+
+The Order Service currently includes application-level logging using SLF4J.
+
+Examples of logged business events include:
+
+```text
+Created order with id=...
+Updated order with id=... to status=...
+Deleted order with id=...
+```
+
+These logs establish the foundation for the structured logging and centralized incident-analysis pipeline that will be introduced in later observability stages.
+
+Full JSON-based structured logging is intentionally deferred to the dedicated logging stage.
+
 ## Testing
 
-The User Service includes integration-style API tests covering:
+The Order Service contains unit, web-layer, and application-context tests.
+
+Current test coverage includes:
 
 * Application context startup
-* User creation
-* User retrieval
-* User listing
-* User deletion
-* Duplicate email handling
+* Order creation
+* Order retrieval
+* Order listing
+* Order update
+* Order deletion
+* Missing-order handling
 * Request validation
-* Missing-user handling
+* Controller HTTP status codes
+* Controller request/response behavior
+* Service-layer repository interactions
 
-The current test suite contains:
+The current Order Service test suite contains:
+
+```text
+15 tests
+15 passed
+0 failures
+0 errors
+```
+
+Run the complete test suite with:
+
+```bash
+cd order-service
+./mvnw clean test
+```
+
+The User Service currently contains:
 
 ```text
 8 tests
@@ -256,7 +458,7 @@ The current test suite contains:
 0 errors
 ```
 
-Tests can be executed with:
+Run the User Service tests with:
 
 ```bash
 cd user-service
@@ -279,6 +481,12 @@ Verify the container:
 docker ps
 ```
 
+The PostgreSQL container is exposed locally on:
+
+```text
+localhost:5432
+```
+
 ### Run User Service
 
 Navigate to the User Service:
@@ -287,7 +495,7 @@ Navigate to the User Service:
 cd user-service
 ```
 
-Run the application:
+Run:
 
 ```bash
 ./mvnw spring-boot:run
@@ -298,6 +506,30 @@ The service starts on:
 ```text
 http://localhost:8080
 ```
+
+### Run Order Service
+
+Open another terminal and navigate to:
+
+```bash
+cd order-service
+```
+
+Run:
+
+```bash
+./mvnw spring-boot:run
+```
+
+The service starts on:
+
+```text
+http://localhost:8081
+```
+
+Both services can therefore run simultaneously during local development.
+
+## User Service API Examples
 
 ### Health Check
 
@@ -332,6 +564,59 @@ curl -i http://localhost:8080/users
 
 ```bash
 curl -i -X DELETE http://localhost:8080/users/1
+```
+
+## Order Service API Examples
+
+### Health Check
+
+```bash
+curl http://localhost:8081/actuator/health
+```
+
+### Create an Order
+
+```bash
+curl -i -X POST http://localhost:8081/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": 1,
+    "product": "Mechanical Keyboard",
+    "quantity": 1,
+    "amount": 129.99
+  }'
+```
+
+### Get an Order
+
+```bash
+curl -i http://localhost:8081/orders/1
+```
+
+### Get All Orders
+
+```bash
+curl -i http://localhost:8081/orders
+```
+
+### Update an Order
+
+```bash
+curl -i -X PUT http://localhost:8081/orders/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": 1,
+    "product": "Mechanical Keyboard",
+    "quantity": 2,
+    "amount": 259.98,
+    "status": "PROCESSING"
+  }'
+```
+
+### Delete an Order
+
+```bash
+curl -i -X DELETE http://localhost:8081/orders/1
 ```
 
 ## Observability Roadmap
@@ -421,11 +706,20 @@ This provides a realistic demonstration of an end-to-end observability and AIOps
 
 ## Project Status
 
-**Stage 2 — User Service** ✅
+**Stage 3 — Order Service** ✅
 
-Completed:
+Completed stages:
 
-* Project initialization
+### Stage 1 — Project Initialization ✅
+
+* Project structure
+* Spring Boot project foundation
+* Docker Compose PostgreSQL environment
+* Environment configuration
+* Initial documentation
+
+### Stage 2 — User Service ✅
+
 * Spring Boot User Service
 * PostgreSQL integration
 * JPA / Hibernate persistence
@@ -438,11 +732,56 @@ Completed:
 * Automated tests
 * Manual API verification
 
+### Stage 3 — Order Service ✅
+
+* Independent Spring Boot Order Service
+* Order CRUD APIs
+* Order lifecycle statuses
+* DTO validation
+* PostgreSQL persistence
+* Dedicated `order_service` database schema
+* Flyway database migration
+* Hibernate schema validation
+* Global exception handling
+* Actuator health check
+* Application-level logging
+* Service-layer unit tests
+* Controller-layer tests
+* Full application-context test
+* Manual API verification
+* 15/15 automated tests passing
+
+### Current Architecture
+
+The application layer now consists of:
+
+```text
+Client
+  │
+  ├──────────────► User Service (:8080)
+  │
+  └──────────────► Order Service (:8081)
+                         │
+                         ▼
+                    PostgreSQL
+```
+
+The API Gateway will be introduced in the next stage to provide a single entry point for these services.
+
 ### Next Stage
 
-**Stage 3 — Order Service** 🚧
+**Stage 4 — API Gateway** 🚧
 
-The next stage will introduce the Order Service and establish the second business service in the distributed application.
+The next stage will introduce a Spring Boot API Gateway that provides a unified entry point for the User Service and Order Service.
+
+Planned responsibilities include:
+
+* Single client-facing entry point
+* Request routing
+* Service discovery / routing configuration
+* Request forwarding
+* Gateway-level health monitoring
+* Foundation for future distributed request observability
 
 ## License
 

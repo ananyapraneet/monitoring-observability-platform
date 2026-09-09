@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: order-service
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/monitoring}
+    username: ${DB_USERNAME:monitoring}
+    password: ${DB_PASSWORD:monitoring}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: order_service
+
+  flyway:
+    schemas: order_service
+    default-schema: order_service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+server:
+  port: 8081

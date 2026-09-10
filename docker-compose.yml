@@ -110,6 +110,23 @@ services:
     networks:
       - monitoring-network
 
+  grafana:
+    image: grafana/grafana:12.2.0
+    container_name: monitoring-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - monitoring-network
+
   node-exporter:
     image: prom/node-exporter:v1.9.1
     container_name: monitoring-node-exporter
@@ -119,9 +136,26 @@ services:
     networks:
       - monitoring-network
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.18.1
+    container_name: monitoring-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_URI: "postgres:5432/monitoring?sslmode=disable"
+      DATA_SOURCE_USER: "monitoring"
+      DATA_SOURCE_PASS: "monitoring"
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - monitoring-network
+
 volumes:
   postgres-data:
   prometheus-data:
+  grafana-data:
 
 networks:
   monitoring-network:

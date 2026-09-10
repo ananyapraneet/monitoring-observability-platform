@@ -8,7 +8,8 @@ Production-style microservice monitoring and observability platform with Spring 
 
 This project demonstrates a production-oriented monitoring and observability platform designed around a distributed microservice application.
 
-The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized alerting, structured logging, incident analysis, and AI-assisted AIOps capabilities.
+The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized Prometheus monitoring, Grafana dashboards, alert rules, 
+structured logging, incident analysis, and AI-assisted AIOps capabilities.
 
 The system is designed around a clear separation of responsibilities:
 
@@ -16,6 +17,8 @@ The system is designed around a clear separation of responsibilities:
 * **API Gateway** provides a centralized client-facing entry point and propagates distributed request context.
 * **Container Platform** provides reproducible local deployment, service networking, health checks, and persistent database storage.
 * **Observability components** collect, store, visualize, and analyze operational data.
+* **Prometheus** collects and stores application and infrastructure metrics and evaluates alerting rules.
+* **Grafana** provides centralized operational dashboards for application, JVM, database, and service health monitoring.
 * **Alerting components** detect defined failure conditions.
 * **AI components** analyze incident context and provide recommendations.
 * **Deterministic automation** remains responsible for executing operational changes.
@@ -26,71 +29,85 @@ The AI layer is therefore designed as a **read-only decision-support system**, r
 
 ## Architecture
 
-The current application architecture is:
+The current application and observability architecture is:
 
 ```text
-                         ┌─────────────────────┐
-                         │       Client        │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                         ┌─────────────────────┐
-                         │    API Gateway      │
-                         │    Spring Boot      │
-                         │       :8082         │
-                         └───────┬─────┬───────┘
-                                 │     │
-                    ┌────────────┘     └────────────┐
-                    ▼                               ▼
-          ┌──────────────────┐             ┌──────────────────┐
-          │   User Service   │             │   Order Service  │
-          │    Spring Boot   │             │    Spring Boot   │
-          │     :8080        │             │     :8081        │
-          └────────┬─────────┘             └────────┬─────────┘
-                   │                                │
-                   └──────────────┬─────────────────┘
-                                  │
-                                  ▼
-                         ┌──────────────────┐
-                         │    PostgreSQL    │
-                         │      :5432       │
-                         └────────┬─────────┘
-                                  │
-                                  ▼
-                         ┌──────────────────┐
-                         │ Persistent Docker│
-                         │      Volume      │
-                         └──────────────────┘
+                              ┌─────────────────────┐
+                              │       Client        │
+                              └──────────┬──────────┘
+                                         │
+                                         ▼
+                              ┌─────────────────────┐
+                              │    API Gateway      │
+                              │    Spring Boot      │
+                              │       :8082         │
+                              └───────┬─────┬───────┘
+                                      │     │
+                         ┌────────────┘     └────────────┐
+                         ▼                               ▼
+               ┌──────────────────┐             ┌──────────────────┐
+               │   User Service   │             │   Order Service  │
+               │    Spring Boot   │             │    Spring Boot   │
+               │     :8080        │             │     :8081        │
+               └────────┬─────────┘             └────────┬─────────┘
+                        │                                │
+                        └──────────────┬─────────────────┘
+                                       │
+                                       ▼
+                              ┌──────────────────┐
+                              │    PostgreSQL    │
+                              │      :5432       │
+                              └────────┬─────────┘
+                                       │
+                                       ▼
+                              ┌──────────────────┐
+                              │ Persistent Docker  │
+                              │      Volume        │
+                              └────────-- ──────────┘
 
 
-                    Application Metrics / Logs / Health
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │     Observability   │
-                    │       Pipeline      │
-                    └──────────┬──────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                ▼                ▼
-       ┌─────────────┐  ┌─────────────┐  ┌──────────────┐
-       │ Prometheus  │  │   Grafana   │  │ Alertmanager │
-       └─────────────┘  └─────────────┘  └──────┬───────┘
-                                                │
-                                                ▼
-                                    Incident Context Builder
-                                                │
-                                                ▼
-                                      AI Incident Analyzer
+                     Application / Infrastructure Metrics
+                                       │
+                                       ▼
+                              ┌──────────────────┐
+                              │    Prometheus    │
+                              │      :9090       │
+                              └────────┬─────────┘
+                                       │
+                          ┌────────────┴────────────┐
+                          │                         │
+                          ▼                         ▼
+                   ┌─────────────┐          ┌──────────────┐
+                   │   Grafana   │          │ Alert Rules  │
+                   │    :3000    │          │              │
+                   └─────────────┘          └──────┬───────┘
+                                                   │
+                                                   ▼
+                                            Alertmanager
+                                            (future stage)
+                                                   │
+                                                   ▼
+                                      Incident Context Builder
+                                                   │
+                                                   ▼
+                                         AI Incident Analyzer
 ```
 
-The application and API Gateway currently expose operational metrics through **Spring Boot Actuator and Micrometer**.
+The application services expose operational metrics through **Spring Boot Actuator and Micrometer**.
 
-Prometheus, Grafana, and Alertmanager are part of the planned observability pipeline and will be connected to the application metrics in subsequent stages.
+Prometheus centrally scrapes these metrics and evaluates application and infrastructure alert rules.
 
-The API Gateway currently provides the single client-facing entry point for the business services.
+Grafana uses Prometheus as its data source and provides operational dashboards covering:
 
-The complete application stack can be started locally through Docker Compose.
+* Platform availability
+* Application performance
+* JVM health
+* PostgreSQL health
+* Service health
+
+The current Grafana implementation contains **41 monitoring panels across 5 dashboards**.
+
+The complete application and observability stack can be started locally through Docker Compose.
 
 ---
 
@@ -107,6 +124,7 @@ The complete application stack can be started locally through Docker Compose.
 * Flyway
 * Spring Boot Actuator
 * Micrometer
+* Micrometer Prometheus Registry
 
 ### API Gateway
 
@@ -134,16 +152,21 @@ The complete application stack can be started locally through Docker Compose.
 
 * Spring Boot Actuator
 * Micrometer
+* Micrometer Prometheus Registry
+* Prometheus
+* Prometheus Alert Rules
+* Node Exporter
+* PostgreSQL Exporter
+* Grafana
+* Grafana provisioning
 * HTTP request metrics
 * JVM metrics
 * Process metrics
 * System metrics
 * Thread metrics
 * Database connection pool metrics
+* PostgreSQL database metrics
 * Custom application metrics
-* Prometheus
-* Grafana
-* Alertmanager
 
 ### AI / AIOps
 
@@ -154,6 +177,8 @@ The complete application stack can be started locally through Docker Compose.
 * Incident summarization
 * Root-cause analysis
 * Remediation recommendations
+
+The AI/AIOps components are planned for later stages.
 
 ---
 
@@ -250,8 +275,24 @@ monitoring-observability-platform/
 │
 ├── monitoring/
 │   ├── prometheus/
-│   ├── grafana/
-│   └── alertmanager/
+│   │   ├── prometheus.yml
+│   │   └── rules/
+│   │       ├── application.yml
+│   │       └── infrastructure.yml
+│   │
+│   └── grafana/
+│       ├── provisioning/
+│       │   ├── datasources/
+│       │   │   └── prometheus.yml
+│       │   └── dashboards/
+│       │       └── dashboards.yml
+│       │
+│       └── dashboards/
+│           ├── platform-overview.json
+│           ├── application-performance.json
+│           ├── jvm.json
+│           ├── database.json
+│           └── service-health.json
 │
 ├── ai-incident-analyzer/
 │
@@ -261,7 +302,9 @@ monitoring-observability-platform/
 └── .gitignore
 ```
 
-The detailed service structure will continue to evolve as additional stages introduce Prometheus, dashboards, alerting, structured logging, and AIOps components.
+The monitoring configuration is intentionally stored as code so that the Prometheus and Grafana environment can be recreated consistently.
+
+Grafana dashboards and provisioning configuration are version-controlled JSON/YAML artifacts rather than dashboards that exist only inside the Grafana database.
 
 ---
 
@@ -306,6 +349,7 @@ The service includes:
 * Actuator health endpoint
 * Actuator metrics endpoint
 * Micrometer instrumentation
+* Prometheus metrics exposure
 * Custom business metrics
 * Docker containerization
 * Container health check
@@ -373,6 +417,7 @@ The service includes:
 * Actuator health endpoint
 * Actuator metrics endpoint
 * Micrometer instrumentation
+* Prometheus metrics exposure
 * Custom business metrics
 * Docker containerization
 * Container health check
@@ -439,6 +484,7 @@ The Gateway currently provides:
 * Gateway health endpoint
 * Gateway metrics endpoint
 * Micrometer HTTP instrumentation
+* Prometheus metrics exposure
 * Configurable downstream service URLs
 * Docker containerization
 * Container health check
@@ -567,35 +613,45 @@ This provides service-level schema isolation while keeping the local development
 
 # Dockerized Local Platform
 
-The complete application stack can now be started through Docker Compose.
+The complete application and observability stack can now be started through Docker Compose.
 
 The Dockerized platform consists of:
 
 ```text
-┌────────────────────────────────────────────────────┐
-│              Docker Compose Platform               │
-│                                                    │
-│  ┌──────────────┐                                  │
-│  │ API Gateway  │ :8082                            │
-│  └──────┬───────┘                                  │
-│         │                                           │
-│    ┌────┴────┐                                      │
-│    ▼         ▼                                      │
-│ ┌───────┐ ┌───────────────┐                         │
-│ │ User  │ │    Order      │                         │
-│ │ :8080 │ │    :8081      │                         │
-│ └───┬───┘ └───────┬───────┘                         │
-│     │             │                                 │
-│     └──────┬──────┘                                 │
-│            ▼                                        │
-│     ┌──────────────┐                                │
-│     │  PostgreSQL  │ :5432                          │
-│     └──────┬───────┘                                │
-│            │                                        │
-│            ▼                                        │
-│     postgres-data                                   │
-│     persistent volume                               │
-└────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                  Docker Compose Platform                │
+│                                                          │
+│  ┌──────────────┐                                        │
+│  │ API Gateway  │ :8082                                  │
+│  └──────┬───────┘                                        │
+│         │                                                │
+│    ┌────┴────┐                                           │
+│    ▼         ▼                                           │
+│ ┌───────┐ ┌───────────────┐                              │
+│ │ User  │ │    Order      │                              │
+│ │ :8080 │ │    :8081      │                              │
+│ └───┬───┘ └───────┬───────┘                              │
+│     │             │                                      │
+│     └──────┬──────┘                                      │
+│            ▼                                             │
+│     ┌──────────────┐                                     │
+│     │  PostgreSQL  │ :5432                               │
+│     └──────┬───────┘                                     │
+│            │                                             │
+│            ▼                                             │
+│     postgres-data                                        │
+│     persistent volume                                    │
+│                                                          │
+│  ┌────────────────┐       ┌─────────────────────────┐    │
+│  │   Prometheus   │──────►│        Grafana          │    │
+│  │     :9090      │       │         :3000           │    │
+│  └───────┬────────┘       └─────────────────────────┘    │
+│          │                                               │
+│         ├──────► Node Exporter                  │
+│         │                                              │
+│         └──────► PostgreSQL Exporter            │
+│                                                         │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ## Docker Compose Services
@@ -607,9 +663,13 @@ postgres
 user-service
 order-service
 gateway
+prometheus
+node-exporter
+postgres-exporter
+grafana
 ```
 
-All application services communicate through the dedicated Docker bridge network:
+All services communicate through the dedicated Docker bridge network:
 
 ```text
 monitoring-network
@@ -625,9 +685,15 @@ Gateway → http://order-service:8081
 
 User Service → postgres:5432
 Order Service → postgres:5432
-```
 
-This avoids relying on host-local addresses between containers.
+Prometheus → gateway:8082/actuator/prometheus
+Prometheus → user-service:8080/actuator/prometheus
+Prometheus → order-service:8081/actuator/prometheus
+Prometheus → node-exporter:9100
+Prometheus → postgres-exporter:9187
+
+Grafana → http://prometheus:9090
+```
 
 ## Start the Complete Platform
 
@@ -637,16 +703,9 @@ From the project root:
 docker compose up --build
 ```
 
-The command builds the application images and starts:
+The command builds the application images and starts the application and observability components.
 
-```text
-PostgreSQL
-User Service
-Order Service
-API Gateway
-```
-
-## Verify Container Health
+## Verify Containers
 
 Run:
 
@@ -654,24 +713,26 @@ Run:
 docker compose ps
 ```
 
-All four containers should report:
+The application services should report healthy.
 
-```text
-healthy
-```
+The observability services should report as running.
 
-Expected services:
+Expected services include:
 
 ```text
 monitoring-postgres
 monitoring-user-service
 monitoring-order-service
-monitoring-api-gateway
+monitoring-gateway
+monitoring-prometheus
+monitoring-node-exporter
+monitoring-postgres-exporter
+monitoring-grafana
 ```
 
 ## Container Health Checks
 
-The Compose configuration includes health checks for all services.
+The Compose configuration includes health checks for the core application services.
 
 PostgreSQL uses:
 
@@ -739,6 +800,50 @@ This ensures PostgreSQL data survives container recreation and restart.
 
 Persistence was verified by restarting the PostgreSQL container and successfully retrieving previously stored application data afterward.
 
+## Prometheus Storage
+
+Prometheus uses a named Docker volume:
+
+```text
+prometheus-data
+```
+
+The volume is mounted to:
+
+```text
+/prometheus
+```
+
+This provides persistent Prometheus time-series storage across container recreation.
+
+## Grafana Storage
+
+Grafana uses a named Docker volume:
+
+```text
+grafana-data
+```
+
+The volume is mounted to:
+
+```text
+/var/lib/grafana
+```
+
+Dashboard definitions themselves are maintained as version-controlled JSON files under:
+
+```text
+monitoring/grafana/dashboards/
+```
+
+Grafana provisioning configuration is maintained under:
+
+```text
+monitoring/grafana/provisioning/
+```
+
+This keeps the dashboard environment reproducible through source control.
+
 ## Docker Network
 
 All services are attached to:
@@ -763,7 +868,7 @@ PostgreSQL is started through Docker Compose:
 docker compose up -d postgres
 ```
 
-Or as part of the complete application platform:
+Or as part of the complete application and observability platform:
 
 ```bash
 docker compose up --build
@@ -870,7 +975,7 @@ Example response:
 
 These health endpoints are also used by Docker Compose health checks for the application containers.
 
-They form the foundation for service-health monitoring and failure detection in later stages.
+They form the foundation for service-health monitoring and failure detection.
 
 ---
 
@@ -884,9 +989,20 @@ All three application components expose the following Actuator endpoints:
 /actuator/health
 /actuator/info
 /actuator/metrics
+/actuator/prometheus
 ```
 
-The metrics endpoint provides access to operational measurements collected by Micrometer.
+The Prometheus endpoint exposes Micrometer metrics in Prometheus exposition format.
+
+Examples:
+
+```text
+http://localhost:8080/actuator/prometheus
+http://localhost:8081/actuator/prometheus
+http://localhost:8082/actuator/prometheus
+```
+
+The `/actuator/metrics` endpoint provides access to individual operational measurements collected by Micrometer.
 
 Examples:
 
@@ -896,7 +1012,9 @@ http://localhost:8081/actuator/metrics
 http://localhost:8082/actuator/metrics
 ```
 
-## Micrometer
+---
+
+# Micrometer
 
 Micrometer provides the instrumentation layer used by the Spring Boot applications.
 
@@ -919,7 +1037,13 @@ The platform collects standard operational metrics covering:
 * Database connection pools
 * JDBC connection activity
 
-Spring Boot's built-in `http.server.requests` metric provides request-level measurements including:
+Spring Boot's built-in:
+
+```text
+http.server.requests
+```
+
+metric provides request-level measurements including:
 
 ```text
 method
@@ -933,7 +1057,13 @@ TOTAL_TIME
 MAX
 ```
 
-This provides the metric dimensions required for future error-rate, latency, and service-availability monitoring.
+Histogram buckets are enabled for HTTP request duration so that Prometheus can calculate percentile latency values such as:
+
+```text
+P50
+P95
+P99
+```
 
 ---
 
@@ -1029,51 +1159,25 @@ Total request time
 Maximum request time
 ```
 
-Example metric structure:
-
-```json
-{
-  "availableTags": [
-    {
-      "tag": "method",
-      "values": ["GET"]
-    },
-    {
-      "tag": "status",
-      "values": ["200"]
-    },
-    {
-      "tag": "outcome",
-      "values": ["SUCCESS"]
-    }
-  ],
-  "measurements": [
-    {
-      "statistic": "COUNT",
-      "value": 11.0
-    },
-    {
-      "statistic": "TOTAL_TIME",
-      "value": 1.345455574
-    },
-    {
-      "statistic": "MAX",
-      "value": 0.959183297
-    }
-  ],
-  "name": "http.server.requests"
-}
-```
-
-Gateway traffic through:
+Prometheus exposes the metric as:
 
 ```text
-GET /api/users
+http_server_requests_seconds_count
+http_server_requests_seconds_sum
+http_server_requests_seconds_bucket
+http_server_requests_seconds_max
 ```
 
-was successfully observed through the Gateway's `http.server.requests` metric.
+These metrics are used by the Grafana dashboards to calculate:
 
-The `/api/users` URI appeared in the recorded metric dimensions and the request count increased after traffic was generated.
+* Request rate
+* HTTP status distribution
+* Error rate
+* P50 latency
+* P95 latency
+* P99 latency
+* Requests by HTTP method
+* Top request URIs
 
 ---
 
@@ -1084,31 +1188,41 @@ The applications expose JVM and process-level metrics through Micrometer.
 Examples include:
 
 ```text
-jvm.memory.used
-jvm.memory.committed
-jvm.memory.max
+jvm_memory_used_bytes
+jvm_memory_committed_bytes
+jvm_memory_max_bytes
 
-jvm.threads.live
-jvm.threads.daemon
-jvm.threads.peak
-jvm.threads.started
+jvm_threads_live_threads
+jvm_threads_daemon_threads
+jvm_threads_peak_threads
+jvm_threads_started_threads
 
-process.cpu.usage
-process.cpu.time
+process_cpu_usage
+process_cpu_time_seconds_total
 
-system.cpu.usage
-system.cpu.count
+system_cpu_usage
+system_cpu_count
 ```
 
-These metrics provide the foundation for monitoring:
+Additional metrics cover:
+
+* Garbage collection
+* JVM buffers
+* Class loading
+* Compilation
+* Executor activity
+* Tomcat activity
+* Disk space
+* Process uptime
+
+These metrics provide visibility into:
 
 * JVM memory utilization
 * JVM thread activity
 * CPU consumption
+* Garbage collection
 * Runtime resource pressure
 * Application process health
-
-Additional runtime metrics include garbage collection, class loading, executor activity, disk space, and Tomcat session information.
 
 ---
 
@@ -1131,20 +1245,706 @@ jdbc.connections.max
 jdbc.connections.min
 ```
 
-These metrics provide visibility into database connection utilization and form the basis for future database saturation alerts.
+These metrics provide visibility into application-side database connection utilization.
+
+In addition, the platform now uses **PostgreSQL Exporter** to expose PostgreSQL server-level database metrics.
+
+The PostgreSQL exporter runs on:
+
+```text
+localhost:9187
+```
+
+and exposes:
+
+```text
+/metrics
+```
+
+Prometheus scrapes the exporter through:
+
+```text
+postgres-exporter:9187
+```
+
+Important PostgreSQL metrics include:
+
+```text
+pg_up
+pg_database_size_bytes
+pg_database_connection_limit
+pg_stat_database_numbackends
+pg_stat_database_xact_commit
+pg_stat_database_xact_rollback
+pg_stat_database_blks_hit
+pg_stat_database_blks_read
+pg_stat_database_tup_fetched
+pg_stat_database_tup_inserted
+pg_stat_database_tup_updated
+pg_stat_database_tup_deleted
+pg_stat_database_deadlocks
+pg_stat_database_temp_files
+pg_stat_database_temp_bytes
+pg_stat_bgwriter_buffers_alloc_total
+pg_stat_bgwriter_buffers_clean_total
+```
+
+These metrics provide visibility into:
+
+* PostgreSQL availability
+* Active connections
+* Database size
+* Transaction activity
+* Tuple activity
+* Cache hit ratio
+* Deadlocks
+* Temporary file activity
+* Background writer activity
+
+---
+
+# Prometheus Monitoring
+
+## Prometheus
+
+Prometheus provides centralized metrics collection and time-series storage for the platform.
+
+The Prometheus server runs on:
+
+```text
+http://localhost:9090
+```
+
+Prometheus is configured with a:
+
+```text
+15 second scrape interval
+```
+
+and:
+
+```text
+15 second evaluation interval
+```
+
+## Prometheus Scrape Targets
+
+The current Prometheus configuration scrapes:
+
+```text
+gateway
+user-service
+order-service
+node-exporter
+postgres-exporter
+```
+
+Application targets expose:
+
+```text
+/actuator/prometheus
+```
+
+The infrastructure and database exporters expose their standard:
+
+```text
+/metrics
+```
+
+endpoint.
+
+The current scrape topology is:
+
+```text
+Gateway ──────────────┐
+User Service ─────────┤
+Order Service ────────┼──► Prometheus
+                      │
+Node Exporter ────────┤
+                      │
+PostgreSQL Exporter ──┘
+```
+
+## Target Verification
+
+Prometheus target health was verified for:
+
+```text
+gateway
+user-service
+order-service
+node-exporter
+postgres
+```
+
+Application target health is represented by:
+
+```promql
+up
+```
+
+PostgreSQL availability is represented by:
+
+```promql
+pg_up
+```
+
+---
+
+# Prometheus Alert Rules
+
+Prometheus currently evaluates application and infrastructure alert rules.
+
+The rules are maintained as source-controlled files:
+
+```text
+monitoring/prometheus/rules/application.yml
+monitoring/prometheus/rules/infrastructure.yml
+```
+
+## Application Alerts
+
+### ServiceDown
+
+Detects an unavailable Prometheus target.
+
+```text
+up == 0
+```
+
+Condition:
+
+```text
+1 minute
+```
+
+Severity:
+
+```text
+critical
+```
+
+### HighHttp5xxErrorRate
+
+Detects HTTP 5xx responses exceeding:
+
+```text
+5%
+```
+
+for:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+### HighRequestLatency
+
+Detects P95 HTTP request latency above:
+
+```text
+1 second
+```
+
+for:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+### HighJvmMemoryUsage
+
+Detects JVM heap utilization above:
+
+```text
+85%
+```
+
+for:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+## Infrastructure Alerts
+
+### HighCpuUsage
+
+Detects infrastructure CPU utilization above:
+
+```text
+80%
+```
+
+for:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+### HighMemoryUsage
+
+Detects infrastructure memory utilization above:
+
+```text
+85%
+```
+
+for:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+### LowFilesystemSpace
+
+Detects filesystem availability below:
+
+```text
+15%
+```
+
+for:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+### HighSystemLoad
+
+Detects one-minute system load above:
+
+```text
+4
+```
+
+for:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+The current threshold reflects the four-CPU Linux environment used by the Dockerized monitoring stack.
+
+> **Note:** Node Exporter is currently running inside the Docker environment on macOS. Its infrastructure metrics therefore represent the Linux environment available to the containerized stack rather than the physical Mac host's 
+hardware resources.
+
+---
+
+# Grafana Dashboards
+
+Grafana provides the operational visualization layer for the Prometheus metrics.
+
+Grafana runs on:
+
+```text
+http://localhost:3000
+```
+
+Prometheus is configured as the default Grafana data source:
+
+```text
+http://prometheus:9090
+```
+
+The data source and dashboards are provisioned automatically through source-controlled configuration.
+
+Grafana dashboard provisioning is defined in:
+
+```text
+monitoring/grafana/provisioning/
+```
+
+Dashboard JSON definitions are stored in:
+
+```text
+monitoring/grafana/dashboards/
+```
+
+The current implementation contains **5 dashboards with 41 panels**.
+
+---
+
+## Dashboard 1 — Platform Overview
+
+The Platform Overview dashboard provides a high-level operational view of the entire platform.
+
+### Panels
+
+```text
+1. Gateway Availability
+2. User Service Availability
+3. Order Service Availability
+4. PostgreSQL Availability
+5. Request Rate
+6. HTTP 5xx Error Rate
+7. P50 Request Latency
+8. P95 Request Latency
+9. P99 Request Latency
+```
+
+The dashboard provides an immediate answer to:
+
+```text
+Are the core services available?
+Is traffic flowing?
+Are requests failing?
+Is request latency increasing?
+```
+
+---
+
+## Dashboard 2 — Application Performance
+
+The Application Performance dashboard focuses on HTTP-level application behavior.
+
+### Panels
+
+```text
+1. Requests / Second
+2. P50 Request Latency
+3. P95 Request Latency
+4. P99 Request Latency
+5. HTTP Status Distribution
+6. Requests by HTTP Method
+7. Top Request URIs
+```
+
+This dashboard provides visibility into:
+
+* Application throughput
+* Request latency
+* HTTP response distribution
+* Request methods
+* Frequently accessed endpoints
+
+---
+
+## Dashboard 3 — JVM
+
+The JVM dashboard focuses on runtime health across the three Spring Boot services.
+
+### Panels
+
+```text
+1. JVM Heap Usage %
+2. JVM Heap Used
+3. JVM Heap Max
+4. JVM Non-Heap Used
+5. JVM Garbage Collection Rate
+6. JVM Live Threads
+7. JVM CPU Usage
+```
+
+The dashboard provides visibility into:
+
+* Heap pressure
+* JVM memory allocation
+* Non-heap memory
+* Garbage collection activity
+* Thread count
+* Application CPU utilization
+
+---
+
+## Dashboard 4 — Database
+
+The Database dashboard focuses on PostgreSQL operational health and activity.
+
+### Panels
+
+```text
+1. PostgreSQL Availability
+2. Active Connections
+3. Database Size
+4. Transactions / Second
+5. Tuples Fetched / Second
+6. Tuple Modifications / Second
+7. Database Cache Hit Ratio
+8. Deadlocks
+9. Temporary Files / Second
+10. Background Writer Activity
+```
+
+The dashboard provides visibility into:
+
+* PostgreSQL availability
+* Connection utilization
+* Database growth
+* Transaction activity
+* Read activity
+* Write activity
+* Cache effectiveness
+* Deadlocks
+* Temporary file generation
+* Background writer behavior
+
+---
+
+## Dashboard 5 — Service Health
+
+The Service Health dashboard provides an operational view of individual service availability and service-level behavior.
+
+### Panels
+
+```text
+1. Gateway Health
+2. User Service Health
+3. Order Service Health
+4. PostgreSQL Health
+5. All Services Availability
+6. Service Request Rate
+7. Service Error Rate
+8. Service P95 Latency
+```
+
+The dashboard makes it possible to quickly identify:
+
+```text
+Which service is unavailable?
+Is PostgreSQL healthy?
+Which service is receiving traffic?
+Are services producing 5xx errors?
+Which service has elevated latency?
+```
+
+---
+
+# Grafana Provisioning
+
+Grafana is configured through source-controlled provisioning files.
+
+## Prometheus Data Source
+
+The Prometheus data source is automatically provisioned using:
+
+```text
+monitoring/grafana/provisioning/datasources/prometheus.yml
+```
+
+The configured endpoint is:
+
+```text
+http://prometheus:9090
+```
+
+The data source is configured as the default Grafana data source.
+
+## Dashboard Provider
+
+Dashboard provisioning is configured using:
+
+```text
+monitoring/grafana/provisioning/dashboards/dashboards.yml
+```
+
+The provider loads dashboard definitions from:
+
+```text
+/var/lib/grafana/dashboards
+```
+
+The Docker Compose configuration mounts the repository directory:
+
+```text
+./monitoring/grafana/dashboards
+```
+
+into the Grafana container.
+
+This allows dashboards to be recreated automatically from Git-controlled JSON definitions.
 
 ---
 
 # Observability Verification
 
-Stage 6 was verified using the running Dockerized platform.
+The monitoring pipeline has been verified end-to-end.
+
+## Application Metrics
+
+All three Spring Boot services successfully expose:
+
+```text
+/actuator/prometheus
+```
+
+Prometheus successfully scrapes:
+
+```text
+gateway
+user-service
+order-service
+```
+
+## Infrastructure Metrics
+
+Node Exporter successfully exposes infrastructure metrics through:
+
+```text
+node-exporter:9100
+```
+
+Prometheus successfully scrapes the exporter.
+
+## PostgreSQL Metrics
+
+PostgreSQL Exporter successfully exposes database metrics through:
+
+```text
+postgres-exporter:9187
+```
+
+The following Prometheus query was verified:
+
+```promql
+pg_up
+```
+
+and returned:
+
+```text
+1
+```
+
+indicating a healthy PostgreSQL connection.
+
+PostgreSQL activity metrics such as:
+
+```text
+pg_stat_database_numbackends
+pg_stat_database_xact_commit
+pg_stat_database_blks_hit
+pg_stat_database_blks_read
+pg_stat_database_tup_fetched
+```
+
+were also successfully queried through Prometheus.
+
+## HTTP Metrics
+
+The application services expose:
+
+```text
+http_server_requests_seconds_count
+http_server_requests_seconds_sum
+http_server_requests_seconds_bucket
+http_server_requests_seconds_max
+```
+
+Prometheus queries were successfully validated for:
+
+```text
+Request rate
+P50 latency
+P95 latency
+P99 latency
+HTTP 5xx rate
+HTTP status distribution
+HTTP method distribution
+Top request URIs
+```
+
+## JVM Metrics
+
+Prometheus successfully exposes and queries JVM metrics including:
+
+```text
+jvm_memory_used_bytes
+jvm_memory_max_bytes
+jvm_memory_committed_bytes
+jvm_threads_live_threads
+jvm_gc_pause_seconds_count
+process_cpu_usage
+```
+
+## Alert Rules
+
+Prometheus successfully loaded and evaluated:
+
+```text
+4 application alert rules
+4 infrastructure alert rules
+```
+
+for a total of:
+
+```text
+8 alert rules
+```
+
+The Prometheus configuration and rule files were validated using `promtool`.
+
+## Grafana
+
+All five dashboards were successfully provisioned into Grafana.
+
+The dashboards were visually validated and all panels returned data.
+
+Current dashboard inventory:
+
+```text
+Platform Overview       9 panels
+Application Performance 7 panels
+JVM                     7 panels
+Database               10 panels
+Service Health           8 panels
+──────────────────────────────
+Total                   41 panels
+```
+
+---
+
+# Application Metrics Verification
 
 ## User Service Metrics
 
-The User Service successfully exposed:
+The User Service successfully exposes:
 
 ```text
 /actuator/metrics
+/actuator/prometheus
 ```
 
 Standard metrics such as:
@@ -1166,7 +1966,7 @@ The custom metric:
 user_creation_total
 ```
 
-was also verified by creating a user and observing the counter increment.
+was verified by creating a user and observing the counter increment.
 
 The custom metric:
 
@@ -1178,10 +1978,11 @@ was verified by generating a User Service request and observing the counter incr
 
 ## Order Service Metrics
 
-The Order Service successfully exposed:
+The Order Service successfully exposes:
 
 ```text
 /actuator/metrics
+/actuator/prometheus
 ```
 
 The standard:
@@ -1190,17 +1991,7 @@ The standard:
 http.server.requests
 ```
 
-metric was verified with:
-
-```text
-GET
-POST
-200
-500
-503
-```
-
-status and outcome dimensions.
+metric was verified with HTTP status and outcome dimensions.
 
 The `500` and `503` measurements were generated during deliberate database outage testing and demonstrate that failed requests are visible through the HTTP metrics pipeline.
 
@@ -1227,6 +2018,7 @@ The Gateway successfully exposes:
 
 ```text
 /actuator/metrics
+/actuator/prometheus
 ```
 
 The available metrics include:
@@ -1482,13 +2274,21 @@ Both Gateway routes returned successful HTTP responses while running entirely in
 
 PostgreSQL persistence was also verified by restarting the PostgreSQL container and successfully retrieving previously stored user data afterward.
 
-Application metrics were verified independently on:
+The observability pipeline was verified independently:
 
 ```text
-User Service :8080
-Order Service :8081
-API Gateway :8082
+User Service ──────┐
+Order Service ─────┤
+Gateway ───────────┼──► Prometheus ───► Grafana
+                   │
+Node Exporter ─────┤
+                   │
+PostgreSQL Exporter┘
 ```
+
+Prometheus successfully collected application, JVM, infrastructure, and PostgreSQL metrics.
+
+Grafana successfully queried Prometheus and displayed the collected data across all five dashboards.
 
 ---
 
@@ -1502,7 +2302,7 @@ From the project root:
 docker compose up --build
 ```
 
-This is the recommended way to run the complete local platform.
+This is the recommended way to run the complete local application and observability platform.
 
 Verify the containers:
 
@@ -1590,7 +2390,39 @@ The Gateway starts on:
 http://localhost:8082
 ```
 
-The recommended client flow is:
+## Run Prometheus and Grafana
+
+The recommended approach is to run the complete Compose stack:
+
+```bash
+docker compose up -d
+```
+
+Prometheus:
+
+```text
+http://localhost:9090
+```
+
+Grafana:
+
+```text
+http://localhost:3000
+```
+
+PostgreSQL Exporter:
+
+```text
+http://localhost:9187/metrics
+```
+
+Node Exporter:
+
+```text
+http://localhost:9100/metrics
+```
+
+The recommended client flow remains:
 
 ```text
 Client
@@ -1600,6 +2432,24 @@ API Gateway :8082
 User Service :8080
        OR
 Order Service :8081
+```
+
+The observability flow is:
+
+```text
+Applications
+     │
+     ▼
+Micrometer
+     │
+     ▼
+/actuator/prometheus
+     │
+     ▼
+Prometheus :9090
+     │
+     ▼
+Grafana :3000
 ```
 
 ---
@@ -1616,6 +2466,12 @@ curl http://localhost:8080/actuator/health
 
 ```bash
 curl http://localhost:8080/actuator/metrics
+```
+
+## Prometheus Metrics
+
+```bash
+curl http://localhost:8080/actuator/prometheus
 ```
 
 ## HTTP Request Metrics
@@ -1667,6 +2523,12 @@ curl http://localhost:8081/actuator/health
 
 ```bash
 curl http://localhost:8081/actuator/metrics
+```
+
+## Prometheus Metrics
+
+```bash
+curl http://localhost:8081/actuator/prometheus
 ```
 
 ## HTTP Request Metrics
@@ -1736,6 +2598,12 @@ curl -i http://localhost:8082/actuator/health
 
 ```bash
 curl -i http://localhost:8082/actuator/metrics
+```
+
+## Gateway Prometheus Metrics
+
+```bash
+curl -i http://localhost:8082/actuator/prometheus
 ```
 
 ## Gateway HTTP Request Metrics
@@ -1850,6 +2718,138 @@ Request completed: method=GET uri=/api/orders/2 status=200 correlationId=test-co
 
 ---
 
+# Prometheus Verification
+
+Prometheus can be accessed at:
+
+```text
+http://localhost:9090
+```
+
+## Check Service Availability
+
+```promql
+up
+```
+
+## Check PostgreSQL Availability
+
+```promql
+pg_up
+```
+
+## Request Rate
+
+```promql
+sum by (job) (
+  rate(http_server_requests_seconds_count[5m])
+)
+```
+
+## P95 Request Latency
+
+```promql
+histogram_quantile(
+  0.95,
+  sum by (job, le) (
+    rate(http_server_requests_seconds_bucket[5m])
+  )
+)
+```
+
+## HTTP 5xx Error Rate
+
+```promql
+sum by (job) (
+  rate(http_server_requests_seconds_count{status=~"5.."}[5m])
+)
+or on(job)
+(
+  0 * sum by (job) (
+    rate(http_server_requests_seconds_count[5m])
+  )
+)
+```
+
+The `or` expression ensures that healthy services with no recent 5xx responses still appear as:
+
+```text
+0
+```
+
+rather than:
+
+```text
+No data
+```
+
+## PostgreSQL Active Connections
+
+```promql
+sum by (datname) (
+  pg_stat_database_numbackends
+)
+```
+
+## PostgreSQL Cache Hit Ratio
+
+```promql
+100 *
+sum by (datname) (
+  rate(pg_stat_database_blks_hit[5m])
+)
+/
+(
+  sum by (datname) (
+    rate(pg_stat_database_blks_hit[5m])
+  )
+  +
+  sum by (datname) (
+    rate(pg_stat_database_blks_read[5m])
+  )
+)
+```
+
+---
+
+# Grafana Verification
+
+Grafana can be accessed at:
+
+```text
+http://localhost:3000
+```
+
+The current dashboard folder is:
+
+```text
+Monitoring
+```
+
+Available dashboards:
+
+```text
+Platform Overview
+Application Performance
+JVM
+Database
+Service Health
+```
+
+Grafana automatically provisions the dashboards from:
+
+```text
+monitoring/grafana/dashboards/
+```
+
+and the Prometheus data source from:
+
+```text
+monitoring/grafana/provisioning/datasources/prometheus.yml
+```
+
+---
+
 # Docker Compose Verification
 
 The complete platform can be verified with:
@@ -1858,13 +2858,22 @@ The complete platform can be verified with:
 docker compose ps
 ```
 
-Expected state:
+Expected application state:
 
 ```text
 gateway          healthy
 user-service     healthy
 order-service    healthy
 postgres         healthy
+```
+
+The observability services should be running:
+
+```text
+prometheus       running
+node-exporter    running
+postgres-exporter running
+grafana          running
 ```
 
 The application can then be tested through the Gateway:
@@ -1891,19 +2900,12 @@ Docker Service
 PostgreSQL
 ```
 
-The PostgreSQL container can also be restarted:
-
-```bash
-docker compose restart postgres
-```
-
-Existing application data should remain available because PostgreSQL uses the persistent:
+The monitoring pipeline can then be verified through:
 
 ```text
-postgres-data
+Prometheus :9090
+Grafana    :3000
 ```
-
-Docker volume.
 
 ---
 
@@ -1911,7 +2913,7 @@ Docker volume.
 
 The platform will progressively evolve from application-level instrumentation into a complete monitoring and AIOps platform.
 
-The planned observability pipeline is:
+The current observability pipeline is:
 
 ```text
 Applications
@@ -1921,8 +2923,26 @@ Applications
     │                         ▼
     │                      Grafana
     │
-    ├── Alerts ◄────────── Alertmanager
+    ├── Health ───────────► Prometheus
     │
+    └── Infrastructure ──► Exporters
+                              │
+                              ▼
+                          Prometheus
+```
+
+The planned future incident-intelligence pipeline is:
+
+```text
+Applications
+    │
+    ├── Metrics ──────────► Prometheus
+    │                         │
+    │                         ▼
+    │                      Grafana
+    │
+    ├── Alerts ───────────► Alertmanager
+    │                         │
     ├── Logs ─────────────► Incident Context
     │                         Builder
     │
@@ -1933,26 +2953,25 @@ Applications
                          AI Incident Analyzer
 ```
 
-Planned stages include:
+Planned future stages include:
 
-1. Prometheus metrics collection
-2. Grafana dashboards
-3. Alertmanager
-4. Structured application logging
-5. Incident context generation
-6. AI-powered incident analysis
-7. Alert correlation
-8. Anomaly detection
-9. AI log analysis
-10. Incident timeline generation
-11. Automated incident reports
-12. Failure simulation
-13. Incident recovery workflows
-14. Incident history
-15. Testing and reliability validation
-16. Security hardening
-17. CI/CD
-18. Documentation and portfolio polish
+1. Alertmanager integration
+2. Structured application logging
+3. Centralized log collection
+4. Incident context generation
+5. AI-powered incident analysis
+6. Alert correlation
+7. Anomaly detection
+8. AI log analysis
+9. Incident timeline generation
+10. Automated incident reports
+11. Failure simulation
+12. Incident recovery workflows
+13. Incident history
+14. Testing and reliability validation
+15. Security hardening
+16. CI/CD
+17. Documentation and portfolio polish
 
 ---
 
@@ -2039,17 +3058,13 @@ Database Recovery
 Service Recovery
 ```
 
-This provides a realistic demonstration of an end-to-end observability and AIOps workflow rather than simply displaying dashboards.
+The Order Service has already been used for controlled database failure testing during the application observability stage.
 
-The Order Service has already been used for controlled database failure testing during the application observability stage. The full automated failure-detection and AI-analysis workflow will be implemented in later stages.
+The full automated failure-detection and AI-analysis workflow will be implemented in later stages.
 
 ---
 
 # Project Status
-
-**Stage 6 — Application Observability** ✅
-
-Completed stages:
 
 ## Stage 1 — Project Initialization ✅
 
@@ -2140,13 +3155,16 @@ Completed stages:
 * `/actuator/health`
 * `/actuator/info`
 * `/actuator/metrics`
+* `/actuator/prometheus`
 * Micrometer instrumentation
+* Micrometer Prometheus registry
 * HTTP request metrics
 * Request duration metrics
 * HTTP status metrics
 * HTTP method metrics
 * HTTP outcome metrics
 * HTTP exception/error metrics
+* HTTP histogram buckets
 * JVM memory metrics
 * JVM thread metrics
 * Garbage collection metrics
@@ -2172,61 +3190,171 @@ Completed stages:
 * 8/8 User Service tests passing
 * 1/1 Gateway tests passing
 
+## Stage 7 — Prometheus Monitoring & Alerting ✅
+
+* Prometheus container
+* Prometheus persistent storage
+* Prometheus scrape configuration
+* 15-second scrape interval
+* Gateway metrics scraping
+* User Service metrics scraping
+* Order Service metrics scraping
+* Node Exporter integration
+* PostgreSQL Exporter integration
+* PostgreSQL database metric collection
+* Application metric collection
+* JVM metric collection
+* Infrastructure metric collection
+* Prometheus target verification
+* Prometheus query verification
+* Application alert rules
+* Infrastructure alert rules
+* `ServiceDown`
+* `HighHttp5xxErrorRate`
+* `HighRequestLatency`
+* `HighJvmMemoryUsage`
+* `HighCpuUsage`
+* `HighMemoryUsage`
+* `LowFilesystemSpace`
+* `HighSystemLoad`
+* Prometheus configuration validation
+* Prometheus rule validation
+* `promtool` verification
+* 8 alert rules successfully loaded
+
+## Stage 8 — Grafana Dashboards ✅
+
+* Grafana container
+* Grafana persistent storage
+* Prometheus data source
+* Automated Grafana data source provisioning
+* Automated dashboard provisioning
+* Version-controlled dashboard JSON
+* Monitoring dashboard folder
+* Platform Overview dashboard
+* Application Performance dashboard
+* JVM dashboard
+* Database dashboard
+* Service Health dashboard
+* 41 operational monitoring panels
+* Service availability monitoring
+* Request-rate monitoring
+* HTTP error-rate monitoring
+* P50 latency monitoring
+* P95 latency monitoring
+* P99 latency monitoring
+* HTTP status monitoring
+* HTTP method monitoring
+* URI monitoring
+* JVM heap monitoring
+* JVM non-heap monitoring
+* JVM thread monitoring
+* JVM CPU monitoring
+* Garbage collection monitoring
+* PostgreSQL availability monitoring
+* PostgreSQL connection monitoring
+* PostgreSQL database-size monitoring
+* PostgreSQL transaction monitoring
+* PostgreSQL tuple activity monitoring
+* PostgreSQL cache hit monitoring
+* PostgreSQL deadlock monitoring
+* PostgreSQL temporary-file monitoring
+* PostgreSQL background-writer monitoring
+* Service-level health dashboards
+* Grafana dashboard validation
+* All five dashboards visually verified with live data
+
 ---
 
 # Current Architecture
 
-The complete local application platform now consists of:
+The complete local application and observability platform now consists of:
 
 ```text
-                         Client
-                           │
-                           ▼
-                  API Gateway :8082
-                           │
-                 ┌─────────┴─────────┐
-                 │                   │
-                 ▼                   ▼
-          User Service         Order Service
-             :8080                :8081
-                 │                   │
-                 └─────────┬─────────┘
-                           ▼
-                      PostgreSQL
-                         :5432
-                           │
-                           ▼
-                 Persistent Docker Volume
+                              Client
+                                │
+                                ▼
+                       API Gateway :8082
+                                │
+                      ┌─────────┴─────────┐
+                      │                   │
+                      ▼                   ▼
+               User Service        Order Service
+                  :8080                :8081
+                      │                   │
+                      └─────────┬─────────┘
+                                ▼
+                           PostgreSQL
+                              :5432
+                                │
+                                ▼
+                       Persistent Storage
+
+
+             ┌────────────────────────────────┐
+             │       Observability Layer      │
+             │                                │
+             │  ┌──────────────────────────┐  │
+             │  │       Prometheus         │  │
+             │  │          :9090            │  │
+             │  └────────────┬─────────────┘  │
+             │               │                │
+             │               ▼                │
+             │  ┌──────────────────────────┐  │
+             │  │         Grafana           │  │
+             │  │          :3000            │  │
+             │  └──────────────────────────┘  │
+             │                                │
+             │  Node Exporter :9100           │
+             │  PostgreSQL Exporter :9187     │
+             └────────────────────────────────┘
 ```
 
-The application components currently expose operational metrics:
+The application components expose operational metrics through:
 
 ```text
-                 ┌─────────────────────┐
-                 │    API Gateway      │
-                 │       :8082         │
-                 └──────────┬──────────┘
-                            │
-                            │ Metrics
-                            ▼
-                 ┌─────────────────────┐
-                 │      Micrometer     │
-                 │  Spring Actuator    │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 /actuator/metrics
+Spring Boot Actuator
+        │
+        ▼
+     Micrometer
+        │
+        ▼
+/actuator/prometheus
+        │
+        ▼
+    Prometheus
+        │
+        ▼
+     Grafana
 ```
 
-The same instrumentation model is implemented by:
+The current Prometheus monitoring layer collects:
 
 ```text
-User Service :8080
-Order Service :8081
-API Gateway  :8082
+Application Metrics
+JVM Metrics
+Process Metrics
+Infrastructure Metrics
+PostgreSQL Metrics
 ```
 
-The entire application can now be started reproducibly through:
+The current Grafana layer provides:
+
+```text
+Platform Overview
+Application Performance
+JVM
+Database
+Service Health
+```
+
+with:
+
+```text
+41 total monitoring panels
+```
+
+The complete application and monitoring environment can now be started reproducibly through:
 
 ```bash
 docker compose up --build
@@ -2238,43 +3366,70 @@ Health checks and dependency conditions ensure that services start only after th
 
 The database uses a persistent Docker volume so application data survives PostgreSQL container restarts.
 
-Application metrics now provide the operational foundation required for Prometheus, Grafana, Alertmanager, and the later AIOps incident-intelligence pipeline.
+Prometheus uses persistent storage for collected time-series data.
+
+Grafana dashboards and provisioning configuration are maintained as source-controlled files, making the monitoring environment reproducible.
 
 ---
 
 # Next Stage
 
-**Stage 7 — Prometheus** 🚧
+**Stage 9 — Alertmanager & Incident Notification** 🚧
 
-The next stage will connect the application's exposed Micrometer metrics to **Prometheus**.
+The next stage will extend the current Prometheus alerting foundation into a complete alert-delivery pipeline.
 
 Planned responsibilities include:
 
-* Prometheus container configuration
-* Prometheus scrape configuration
-* Scraping User Service metrics
-* Scraping Order Service metrics
-* Scraping API Gateway metrics
-* Prometheus target health verification
-* Prometheus query verification
-* Application metric collection
-* Foundation for Grafana dashboards
-* Foundation for Alertmanager rules
+* Alertmanager container
+* Prometheus → Alertmanager integration
+* Alert routing
+* Severity-based routing
+* Alert grouping
+* Alert deduplication
+* Alert inhibition
+* Notification configuration
+* Alert lifecycle verification
+* Failure simulation
+* End-to-end alert delivery testing
 
-The resulting observability flow will become:
+The resulting flow will become:
 
 ```text
-User Service ──────┐
-                   │
-Order Service ─────┼──► Prometheus
-                   │
-API Gateway ───────┘
-                         │
-                         ▼
-                      Grafana
+Application / Infrastructure
+           │
+           ▼
+       Prometheus
+           │
+           │ Alert
+           ▼
+      Alertmanager
+           │
+           ▼
+    Notification Channel
 ```
 
-This will establish centralized metrics collection across the distributed application.
+Later stages will extend this into:
+
+```text
+Alertmanager
+      │
+      ▼
+Incident Context Builder
+      │
+      ├── Prometheus Metrics
+      ├── Application Logs
+      ├── Service Health
+      └── Alert Metadata
+              │
+              ▼
+      AI Incident Analyzer
+              │
+              ▼
+      Root Cause Analysis
+              │
+              ▼
+      Remediation Recommendation
+```
 
 ---
 

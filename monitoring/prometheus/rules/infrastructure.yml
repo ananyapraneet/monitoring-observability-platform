@@ -1,0 +1,66 @@
+groups:
+  - name: infrastructure-alerts
+    rules:
+      - alert: HighCpuUsage
+        expr: |
+          100 - (
+            avg by (instance) (
+              rate(node_cpu_seconds_total{mode="idle"}[5m])
+            ) * 100
+          ) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage on {{ $labels.instance }} has exceeded 80% for 5 minutes."
+
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            1 -
+            (
+              node_memory_MemAvailable_bytes
+              /
+              node_memory_MemTotal_bytes
+            )
+          ) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage on {{ $labels.instance }} has exceeded 85% for 5 minutes."
+
+      - alert: LowFilesystemSpace
+        expr: |
+          (
+            node_filesystem_avail_bytes{
+              fstype!~"tmpfs|overlay",
+              mountpoint!="/etc/hostname",
+              mountpoint!="/etc/hosts",
+              mountpoint!="/etc/resolv.conf"
+            }
+            /
+            node_filesystem_size_bytes{
+              fstype!~"tmpfs|overlay",
+              mountpoint!="/etc/hostname",
+              mountpoint!="/etc/hosts",
+              mountpoint!="/etc/resolv.conf"
+            }
+          ) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low filesystem space"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} has less than 15% available space."
+
+      - alert: HighSystemLoad
+        expr: node_load1 > 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High system load"
+          description: "1-minute system load on {{ $labels.instance }} has exceeded 4 for 5 minutes."

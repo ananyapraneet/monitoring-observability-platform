@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: incident-context
+
+server:
+  port: 8090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

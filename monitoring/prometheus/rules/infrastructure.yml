@@ -10,10 +10,13 @@ groups:
           ) > 80
         for: 5m
         labels:
+          service: node-exporter
           severity: warning
+          environment: local
         annotations:
-          summary: "High CPU usage"
+          summary: "High CPU usage on {{ $labels.instance }}"
           description: "CPU usage on {{ $labels.instance }} has exceeded 80% for 5 minutes."
+          runbook: "Check CPU-consuming processes, container workloads, recent deployments, and system load."
 
       - alert: HighMemoryUsage
         expr: |
@@ -27,10 +30,13 @@ groups:
           ) * 100 > 85
         for: 5m
         labels:
+          service: node-exporter
           severity: warning
+          environment: local
         annotations:
-          summary: "High memory usage"
+          summary: "High memory usage on {{ $labels.instance }}"
           description: "Memory usage on {{ $labels.instance }} has exceeded 85% for 5 minutes."
+          runbook: "Check memory-consuming processes, container workloads, JVM usage, and available system memory."
 
       - alert: LowFilesystemSpace
         expr: |
@@ -51,16 +57,45 @@ groups:
           ) * 100 < 15
         for: 5m
         labels:
+          service: node-exporter
           severity: warning
+          environment: local
         annotations:
-          summary: "Low filesystem space"
+          summary: "Low filesystem space on {{ $labels.instance }}"
           description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} has less than 15% available space."
+          runbook: "Check disk usage, container logs, temporary files, Docker storage, and application-generated files."
 
       - alert: HighSystemLoad
         expr: node_load1 > 4
         for: 5m
         labels:
+          service: node-exporter
           severity: warning
+          environment: local
         annotations:
-          summary: "High system load"
+          summary: "High system load on {{ $labels.instance }}"
           description: "1-minute system load on {{ $labels.instance }} has exceeded 4 for 5 minutes."
+          runbook: "Check CPU usage, running workloads, container activity, and processes contributing to system load."
+
+      - alert: DatabaseConnectionExhaustion
+        expr: |
+          (
+            sum by (instance) (
+              pg_stat_database_numbackends{
+                datname!~"template0|template1"
+              }
+            )
+            /
+            max by (instance) (
+              pg_settings_max_connections
+            )
+          ) > 0.90
+        for: 5m
+        labels:
+          service: postgresql
+          severity: warning
+          environment: local
+        annotations:
+          summary: "PostgreSQL connection usage is high on {{ $labels.instance }}"
+          description: "PostgreSQL is using more than 90% of its configured maximum connections on {{ $labels.instance }}."
+          runbook: "Check active database connections, connection pool usage, long-running sessions, idle connections, and application connection leaks."

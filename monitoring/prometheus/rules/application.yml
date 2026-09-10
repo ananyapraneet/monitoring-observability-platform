@@ -1,20 +1,22 @@
 groups:
   - name: application-alerts
     rules:
-
       - alert: ServiceDown
-        expr: up == 0
+        expr: up{job=~"gateway|user-service|order-service"} == 0
         for: 1m
         labels:
+          service: "{{ $labels.job }}"
           severity: critical
+          environment: local
         annotations:
-          summary: "Service is down"
+          summary: "{{ $labels.job }} is unavailable"
           description: "{{ $labels.job }} has been unavailable for more than 1 minute."
+          runbook: "Check the service container, application logs, health endpoint, and downstream dependencies."
 
       - alert: HighHttp5xxErrorRate
         expr: |
           (
-            sum by (job) (
+            sum by (job, instance) (
               rate(http_server_requests_seconds_count{
                 status=~"5.."
               }[5m])
@@ -22,46 +24,58 @@ groups:
           )
           /
           (
-            sum by (job) (
+            sum by (job, instance) (
               rate(http_server_requests_seconds_count[5m])
             )
           ) > 0.05
         for: 5m
         labels:
+          service: "{{ $labels.job }}"
           severity: warning
+          environment: local
+          instance: "{{ $labels.instance }}"
         annotations:
-          summary: "High HTTP 5xx error rate"
+          summary: "High HTTP 5xx error rate on {{ $labels.job }}"
           description: "{{ $labels.job }} has more than 5% HTTP 5xx responses for 5 minutes."
+          runbook: "Check application logs, recent deployments, downstream dependencies, and database connectivity."
 
       - alert: HighRequestLatency
         expr: |
           histogram_quantile(
             0.95,
-            sum by (job, le) (
+            sum by (job,instance, le) (
               rate(http_server_requests_seconds_bucket[5m])
             )
           ) > 1
         for: 5m
         labels:
+          service: "{{ $labels.job }}"
           severity: warning
+          environment: local
+          instance: "{{ $labels.instance }}"
         annotations:
-          summary: "High request latency"
+          summary: "High request latency on {{ $labels.job }}"
           description: "{{ $labels.job }} has a 95th percentile request latency above 1 second."
+          runbook: "Check application latency metrics, database performance, downstream calls, CPU, memory, and recent deployments."
 
       - alert: HighJvmMemoryUsage
         expr: |
           (
-            sum by (job) (
+            sum by (job, instance) (
               jvm_memory_used_bytes{area="heap"}
             )
             /
-            sum by (job) (
+            sum by (job, instance) (
               jvm_memory_max_bytes{area="heap"}
             )
           ) > 0.85
         for: 5m
         labels:
+          service: "{{ $labels.job }}"
           severity: warning
+          environment: local
+          instance: "{{ $labels.instance }}"
         annotations:
-          summary: "High JVM heap memory usage"
+          summary: "High JVM heap memory usage on {{ $labels.job }}"
           description: "{{ $labels.job }} JVM heap usage has exceeded 85% for 5 minutes."
+          runbook: "Check JVM heap usage, garbage collection activity, thread count, recent deployments, and possible memory leaks."

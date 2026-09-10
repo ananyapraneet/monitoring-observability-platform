@@ -110,6 +110,24 @@ services:
     networks:
       - monitoring-network
 
+  alertmanager:
+    image: prom/alertmanager:v0.29.0
+    container_name: monitoring-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - monitoring-network
+
   grafana:
     image: grafana/grafana:12.2.0
     container_name: monitoring-grafana
@@ -156,6 +174,7 @@ volumes:
   postgres-data:
   prometheus-data:
   grafana-data:
+  alertmanager-data:
 
 networks:
   monitoring-network:

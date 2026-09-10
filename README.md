@@ -8,8 +8,7 @@ Production-style microservice monitoring and observability platform with Spring 
 
 This project demonstrates a production-oriented monitoring and observability platform designed around a distributed microservice application.
 
-The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized Prometheus monitoring, Grafana dashboards, alert rules, 
-structured logging, incident analysis, and AI-assisted AIOps capabilities.
+The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized Prometheus monitoring, Grafana dashboards, Alertmanager-based incident detection and routing, structured logging, incident analysis, and AI-assisted AIOps capabilities.
 
 The system is designed around a clear separation of responsibilities:
 
@@ -19,7 +18,7 @@ The system is designed around a clear separation of responsibilities:
 * **Observability components** collect, store, visualize, and analyze operational data.
 * **Prometheus** collects and stores application and infrastructure metrics and evaluates alerting rules.
 * **Grafana** provides centralized operational dashboards for application, JVM, database, and service health monitoring.
-* **Alerting components** detect defined failure conditions.
+* **Alertmanager** receives firing alerts from Prometheus, groups them, and manages their alert lifecycle.
 * **AI components** analyze incident context and provide recommendations.
 * **Deterministic automation** remains responsible for executing operational changes.
 
@@ -61,12 +60,12 @@ The current application and observability architecture is:
                                        │
                                        ▼
                               ┌──────────────────┐
-                              │ Persistent Docker  │
-                              │      Volume        │
-                              └────────-- ──────────┘
+                              │ Persistent Docker│
+                              │      Volume      │
+                              └──────────────────┘
 
 
-                     Application / Infrastructure Metrics
+                  Application / Infrastructure Metrics
                                        │
                                        ▼
                               ┌──────────────────┐
@@ -74,23 +73,19 @@ The current application and observability architecture is:
                               │      :9090       │
                               └────────┬─────────┘
                                        │
-                          ┌────────────┴────────────┐
-                          │                         │
-                          ▼                         ▼
-                   ┌─────────────┐          ┌──────────────┐
-                   │   Grafana   │          │ Alert Rules  │
-                   │    :3000    │          │              │
-                   └─────────────┘          └──────┬───────┘
-                                                   │
-                                                   ▼
-                                            Alertmanager
-                                            (future stage)
-                                                   │
-                                                   ▼
-                                      Incident Context Builder
-                                                   │
-                                                   ▼
-                                         AI Incident Analyzer
+                    ┌──────────────────┼──────────────────┐
+                    │                  │                  │
+                    ▼                  ▼                  ▼
+             ┌─────────────┐   ┌──────────────┐   ┌──────────────┐
+             │   Grafana   │   │ Alert Rules  │   │ Alertmanager │
+             │    :3000    │   │              │   │    :9093     │
+             └─────────────┘   └──────────────┘   └───────┬──────┘
+                                                          │
+                                                          ▼
+                                               Incident Context Builder
+                                                          │
+                                                          ▼
+                                                 AI Incident Analyzer
 ```
 
 The application services expose operational metrics through **Spring Boot Actuator and Micrometer**.
@@ -106,6 +101,8 @@ Grafana uses Prometheus as its data source and provides operational dashboards c
 * Service health
 
 The current Grafana implementation contains **41 monitoring panels across 5 dashboards**.
+
+Prometheus sends firing alerts to Alertmanager, which manages alert grouping, routing, and lifecycle state.
 
 The complete application and observability stack can be started locally through Docker Compose.
 
@@ -159,6 +156,9 @@ The complete application and observability stack can be started locally through 
 * PostgreSQL Exporter
 * Grafana
 * Grafana provisioning
+* Alertmanager
+* Alert routing
+* Alert grouping
 * HTTP request metrics
 * JVM metrics
 * Process metrics
@@ -280,6 +280,9 @@ monitoring-observability-platform/
 │   │       ├── application.yml
 │   │       └── infrastructure.yml
 │   │
+│   ├── alertmanager/
+│   │   └── alertmanager.yml
+│   │
 │   └── grafana/
 │       ├── provisioning/
 │       │   ├── datasources/
@@ -302,7 +305,7 @@ monitoring-observability-platform/
 └── .gitignore
 ```
 
-The monitoring configuration is intentionally stored as code so that the Prometheus and Grafana environment can be recreated consistently.
+The monitoring configuration is intentionally stored as code so that the Prometheus, Alertmanager, and Grafana environment can be recreated consistently.
 
 Grafana dashboards and provisioning configuration are version-controlled JSON/YAML artifacts rather than dashboards that exist only inside the Grafana database.
 
@@ -452,7 +455,7 @@ DELETE /api/users/{id}
 These routes are forwarded to the User Service:
 
 ```text
-/api/users/* → http://localhost:8080/users/*
+/api/users/* → http://user-service:8080/users/*
 ```
 
 ## Order Routes
@@ -468,7 +471,7 @@ DELETE /api/orders/{id}
 These routes are forwarded to the Order Service:
 
 ```text
-/api/orders/* → http://localhost:8081/orders/*
+/api/orders/* → http://order-service:8081/orders/*
 ```
 
 The Gateway currently provides:
@@ -619,7 +622,7 @@ The Dockerized platform consists of:
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
-│                  Docker Compose Platform                │
+│                  Docker Compose Platform                 │
 │                                                          │
 │  ┌──────────────┐                                        │
 │  │ API Gateway  │ :8082                                  │
@@ -647,10 +650,12 @@ The Dockerized platform consists of:
 │  │     :9090      │       │         :3000           │    │
 │  └───────┬────────┘       └─────────────────────────┘    │
 │          │                                               │
-│         ├──────► Node Exporter                  │
-│         │                                              │
-│         └──────► PostgreSQL Exporter            │
-│                                                         │
+│          ├──────► Node Exporter :9100                    │
+│          │                                               │
+│          ├──────► PostgreSQL Exporter :9187              │
+│          │                                               │
+│          └──────► Alertmanager :9093                     │
+│                                                          │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -664,6 +669,7 @@ user-service
 order-service
 gateway
 prometheus
+alertmanager
 node-exporter
 postgres-exporter
 grafana
@@ -693,6 +699,8 @@ Prometheus → node-exporter:9100
 Prometheus → postgres-exporter:9187
 
 Grafana → http://prometheus:9090
+
+Prometheus → http://alertmanager:9093
 ```
 
 ## Start the Complete Platform
@@ -723,8 +731,9 @@ Expected services include:
 monitoring-postgres
 monitoring-user-service
 monitoring-order-service
-monitoring-gateway
+monitoring-api-gateway
 monitoring-prometheus
+monitoring-alertmanager
 monitoring-node-exporter
 monitoring-postgres-exporter
 monitoring-grafana
@@ -762,6 +771,10 @@ PostgreSQL
                            ▼
                      API Gateway
 ```
+
+Prometheus depends on the application services being available before starting its monitoring workload.
+
+Alertmanager depends on Prometheus being started before the alert-delivery pipeline becomes active.
 
 ## Non-Root Containers
 
@@ -843,6 +856,22 @@ monitoring/grafana/provisioning/
 ```
 
 This keeps the dashboard environment reproducible through source control.
+
+## Alertmanager Storage
+
+Alertmanager uses a named Docker volume:
+
+```text
+alertmanager-data
+```
+
+The volume is mounted to:
+
+```text
+/alertmanager
+```
+
+This provides persistent Alertmanager state across container recreation.
 
 ## Docker Network
 
@@ -1247,7 +1276,7 @@ jdbc.connections.min
 
 These metrics provide visibility into application-side database connection utilization.
 
-In addition, the platform now uses **PostgreSQL Exporter** to expose PostgreSQL server-level database metrics.
+In addition, the platform uses **PostgreSQL Exporter** to expose PostgreSQL server-level database metrics.
 
 The PostgreSQL exporter runs on:
 
@@ -1273,6 +1302,7 @@ Important PostgreSQL metrics include:
 pg_up
 pg_database_size_bytes
 pg_database_connection_limit
+pg_settings_max_connections
 pg_stat_database_numbackends
 pg_stat_database_xact_commit
 pg_stat_database_xact_rollback
@@ -1393,7 +1423,7 @@ pg_up
 
 # Prometheus Alert Rules
 
-Prometheus currently evaluates application and infrastructure alert rules.
+Prometheus currently evaluates application, infrastructure, and database alert rules.
 
 The rules are maintained as source-controlled files:
 
@@ -1402,14 +1432,37 @@ monitoring/prometheus/rules/application.yml
 monitoring/prometheus/rules/infrastructure.yml
 ```
 
+The current implementation contains:
+
+```text
+4 application alerts
+5 infrastructure/database alerts
+────────────────────────────
+9 total alert rules
+```
+
+All alert rules include operational metadata appropriate for incident handling.
+
+Required labels include:
+
+```text
+service
+severity
+environment
+alertname
+instance
+```
+
+`alertname` is automatically assigned by Prometheus from the alert rule name.
+
 ## Application Alerts
 
 ### ServiceDown
 
-Detects an unavailable Prometheus target.
+Detects an unavailable application Prometheus target.
 
 ```text
-up == 0
+up{job=~"gateway|user-service|order-service"} == 0
 ```
 
 Condition:
@@ -1444,6 +1497,15 @@ Severity:
 warning
 ```
 
+The rule preserves both:
+
+```text
+job
+instance
+```
+
+so an alert identifies the affected application target.
+
 ### HighRequestLatency
 
 Detects P95 HTTP request latency above:
@@ -1463,6 +1525,15 @@ Severity:
 ```text
 warning
 ```
+
+The histogram-based query retains:
+
+```text
+job
+instance
+```
+
+labels while using the `le` bucket dimension required for percentile calculation.
 
 ### HighJvmMemoryUsage
 
@@ -1570,6 +1641,307 @@ The current threshold reflects the four-CPU Linux environment used by the Docker
 
 > **Note:** Node Exporter is currently running inside the Docker environment on macOS. Its infrastructure metrics therefore represent the Linux environment available to the containerized stack rather than the physical Mac host's 
 hardware resources.
+
+### DatabaseConnectionExhaustion
+
+Detects PostgreSQL connection utilization above:
+
+```text
+90%
+```
+
+of the configured maximum connections.
+
+Condition:
+
+```text
+5 minutes
+```
+
+Severity:
+
+```text
+warning
+```
+
+The alert uses PostgreSQL Exporter metrics:
+
+```text
+pg_stat_database_numbackends
+pg_settings_max_connections
+```
+
+and identifies the affected PostgreSQL exporter instance.
+
+---
+
+# Alert Metadata
+
+Each alert is designed to carry enough information for an operational responder to understand the incident context.
+
+## Labels
+
+Alerts include:
+
+```text
+alertname
+service
+severity
+environment
+instance
+```
+
+Examples:
+
+```text
+alertname: ServiceDown
+service: gateway
+severity: critical
+environment: local
+instance: gateway:8082
+```
+
+## Annotations
+
+Each alert includes:
+
+```text
+summary
+description
+runbook
+```
+
+Example:
+
+```text
+summary:
+gateway is unavailable
+
+description:
+gateway has been unavailable for more than 1 minute.
+
+runbook:
+Check the service container, application logs,
+health endpoint, and downstream dependencies.
+```
+
+The runbook annotation establishes a foundation for the future incident-context and AI-analysis stages.
+
+---
+
+# Alertmanager
+
+Alertmanager provides the alert-management layer between Prometheus and future notification and incident-intelligence components.
+
+Alertmanager runs on:
+
+```text
+http://localhost:9093
+```
+
+The configuration is maintained at:
+
+```text
+monitoring/alertmanager/alertmanager.yml
+```
+
+## Prometheus → Alertmanager
+
+Prometheus is configured to send alerts to:
+
+```text
+http://alertmanager:9093
+```
+
+The active Alertmanager target was verified through the Prometheus API.
+
+The resulting flow is:
+
+```text
+Prometheus
+    │
+    │ firing alerts
+    ▼
+Alertmanager
+    │
+    ├── grouping
+    ├── routing
+    └── lifecycle management
+```
+
+## Alert Grouping
+
+Alertmanager groups alerts by:
+
+```text
+alertname
+service
+severity
+environment
+```
+
+This prevents related alerts from being treated as completely independent notification events.
+
+The current grouping configuration uses:
+
+```text
+group_wait: 30s
+group_interval: 5m
+repeat_interval: 4h
+```
+
+## Default Receiver
+
+The current configuration uses a local default receiver:
+
+```text
+default
+```
+
+No external email, Slack, PagerDuty, or other notification integration is currently configured.
+
+This keeps the project self-contained while establishing the complete Prometheus → Alertmanager alert-management pipeline.
+
+External notification integrations can be added later without changing the core alert rules.
+
+## Alertmanager Configuration Validation
+
+The Alertmanager configuration was validated using:
+
+```bash
+docker run --rm \
+  --entrypoint amtool \
+  -v "$(pwd)/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
+  prom/alertmanager:v0.29.0 \
+  check-config /etc/alertmanager/alertmanager.yml
+```
+
+The configuration passed validation successfully.
+
+---
+
+# Alerting End-to-End Verification
+
+The Alertmanager pipeline was verified using a controlled service failure.
+
+## Failure Simulation
+
+The Gateway was deliberately stopped:
+
+```bash
+docker compose stop gateway
+```
+
+Prometheus detected:
+
+```text
+up{job="gateway"} == 0
+```
+
+After the configured one-minute alert duration, Prometheus produced a firing:
+
+```text
+ServiceDown
+```
+
+alert.
+
+The observed alert metadata included:
+
+```text
+alertname    = ServiceDown
+environment  = local
+instance     = gateway:8082
+job          = gateway
+service      = gateway
+severity     = critical
+```
+
+Prometheus reported the alert as:
+
+```text
+state = firing
+```
+
+## Alertmanager Verification
+
+The same alert was successfully received by Alertmanager.
+
+Alertmanager reported:
+
+```text
+state = active
+receiver = default
+```
+
+This verified the complete alert-delivery path:
+
+```text
+Gateway Failure
+      │
+      ▼
+Prometheus
+      │
+      │ ServiceDown
+      ▼
+Alertmanager
+      │
+      ▼
+Active Alert
+```
+
+## Recovery Verification
+
+The Gateway was then restarted:
+
+```bash
+docker compose start gateway
+```
+
+The Gateway became healthy again:
+
+```text
+health: healthy
+```
+
+and:
+
+```bash
+curl -s http://localhost:8082/actuator/health
+```
+
+returned:
+
+```json
+{
+  "groups": [
+    "liveness",
+    "readiness"
+  ],
+  "status": "UP"
+}
+```
+
+After Prometheus reevaluated the target, the active alert was cleared.
+
+Prometheus returned:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "alerts": []
+  }
+}
+```
+
+Alertmanager also returned no active alerts:
+
+```text
+[]
+```
+
+This verified both **alert firing and alert recovery**.
 
 ---
 
@@ -1905,33 +2277,40 @@ Prometheus successfully loaded and evaluated:
 
 ```text
 4 application alert rules
-4 infrastructure alert rules
-```
-
-for a total of:
-
-```text
-8 alert rules
+5 infrastructure/database alert rules
+────────────────────────────────
+9 total alert rules
 ```
 
 The Prometheus configuration and rule files were validated using `promtool`.
+
+## Alertmanager
+
+Alertmanager successfully:
+
+* Started with the configured configuration
+* Loaded the routing configuration
+* Connected to Prometheus
+* Received a real `ServiceDown` alert
+* Reported the alert as active
+* Cleared the alert after service recovery
 
 ## Grafana
 
 All five dashboards were successfully provisioned into Grafana.
 
-The dashboards were visually validated and all panels returned data.
+The dashboards were visually validated and the implemented panels returned live data.
 
 Current dashboard inventory:
 
 ```text
-Platform Overview       9 panels
-Application Performance 7 panels
-JVM                     7 panels
-Database               10 panels
-Service Health           8 panels
-──────────────────────────────
-Total                   41 panels
+Platform Overview        9 panels
+Application Performance  7 panels
+JVM                      7 panels
+Database                10 panels
+Service Health            8 panels
+───────────────────────────────
+Total                    41 panels
 ```
 
 ---
@@ -2280,15 +2659,19 @@ The observability pipeline was verified independently:
 User Service ──────┐
 Order Service ─────┤
 Gateway ───────────┼──► Prometheus ───► Grafana
-                   │
-Node Exporter ─────┤
-                   │
+                   │         │
+Node Exporter ─────┤         ▼
+                   │    Alertmanager
 PostgreSQL Exporter┘
 ```
 
 Prometheus successfully collected application, JVM, infrastructure, and PostgreSQL metrics.
 
-Grafana successfully queried Prometheus and displayed the collected data across all five dashboards.
+Grafana successfully queried Prometheus and displayed the collected data across the five dashboards.
+
+Prometheus successfully evaluated the configured alert rules.
+
+Alertmanager successfully received a real service-down alert and cleared it after recovery.
 
 ---
 
@@ -2390,7 +2773,7 @@ The Gateway starts on:
 http://localhost:8082
 ```
 
-## Run Prometheus and Grafana
+## Run Observability Components
 
 The recommended approach is to run the complete Compose stack:
 
@@ -2408,6 +2791,12 @@ Grafana:
 
 ```text
 http://localhost:3000
+```
+
+Alertmanager:
+
+```text
+http://localhost:9093
 ```
 
 PostgreSQL Exporter:
@@ -2448,8 +2837,9 @@ Micrometer
      ▼
 Prometheus :9090
      │
-     ▼
-Grafana :3000
+     ├────────────► Grafana :3000
+     │
+     └────────────► Alertmanager :9093
 ```
 
 ---
@@ -2810,6 +3200,72 @@ sum by (datname) (
 )
 ```
 
+## Database Connection Utilization
+
+```promql
+(
+  sum by (instance) (
+    pg_stat_database_numbackends{
+      datname!~"template0|template1"
+    }
+  )
+  /
+  max by (instance) (
+    pg_settings_max_connections
+  )
+) * 100
+```
+
+---
+
+# Alertmanager Verification
+
+Alertmanager can be accessed at:
+
+```text
+http://localhost:9093
+```
+
+## Check Alertmanager Status
+
+```bash
+curl -s http://localhost:9093/api/v2/status
+```
+
+## Check Active Alerts
+
+```bash
+curl -s http://localhost:9093/api/v2/alerts
+```
+
+## Check Prometheus → Alertmanager Connection
+
+```bash
+curl -s http://localhost:9090/api/v1/alertmanagers
+```
+
+A healthy connection reports an active Alertmanager target similar to:
+
+```text
+http://alertmanager:9093/api/v2/alerts
+```
+
+## Verify Firing Alerts
+
+Prometheus active alerts:
+
+```bash
+curl -s http://localhost:9090/api/v1/alerts
+```
+
+Alertmanager active alerts:
+
+```bash
+curl -s http://localhost:9093/api/v2/alerts
+```
+
+The Gateway failure test described in the **Alerting End-to-End Verification** section confirmed that the same `ServiceDown` alert successfully travelled from Prometheus to Alertmanager.
+
 ---
 
 # Grafana Verification
@@ -2870,10 +3326,11 @@ postgres         healthy
 The observability services should be running:
 
 ```text
-prometheus       running
-node-exporter    running
-postgres-exporter running
-grafana          running
+prometheus
+alertmanager
+node-exporter
+postgres-exporter
+grafana
 ```
 
 The application can then be tested through the Gateway:
@@ -2904,7 +3361,8 @@ The monitoring pipeline can then be verified through:
 
 ```text
 Prometheus :9090
-Grafana    :3000
+Grafana :3000
+Alertmanager :9093
 ```
 
 ---
@@ -2920,8 +3378,9 @@ Applications
     │
     ├── Metrics ──────────► Prometheus
     │                         │
-    │                         ▼
-    │                      Grafana
+    │                         ├────────► Grafana
+    │                         │
+    │                         └────────► Alertmanager
     │
     ├── Health ───────────► Prometheus
     │
@@ -2938,40 +3397,36 @@ Applications
     │
     ├── Metrics ──────────► Prometheus
     │                         │
-    │                         ▼
-    │                      Grafana
-    │
-    ├── Alerts ───────────► Alertmanager
+    │                         ├────────► Grafana
     │                         │
-    ├── Logs ─────────────► Incident Context
-    │                         Builder
-    │
-    └── Health ───────────► Incident Context
-                              Builder
-                                  │
-                                  ▼
-                         AI Incident Analyzer
+    │                         └────────► Alertmanager
+    │                                         │
+    ├── Logs ─────────────► Incident Context Builder
+    │                                         │
+    └── Health ───────────► Incident Context Builder
+                                              │
+                                              ▼
+                                     AI Incident Analyzer
 ```
 
 Planned future stages include:
 
-1. Alertmanager integration
-2. Structured application logging
-3. Centralized log collection
-4. Incident context generation
-5. AI-powered incident analysis
-6. Alert correlation
-7. Anomaly detection
-8. AI log analysis
-9. Incident timeline generation
-10. Automated incident reports
-11. Failure simulation
-12. Incident recovery workflows
-13. Incident history
-14. Testing and reliability validation
-15. Security hardening
-16. CI/CD
-17. Documentation and portfolio polish
+1. Structured application logging
+2. Centralized log collection
+3. Incident context generation
+4. AI-powered incident analysis
+5. Alert correlation
+6. Anomaly detection
+7. AI log analysis
+8. Incident timeline generation
+9. Automated incident reports
+10. Failure simulation
+11. Incident recovery workflows
+12. Incident history
+13. Testing and reliability validation
+14. Security hardening
+15. CI/CD
+16. Documentation and portfolio polish
 
 ---
 
@@ -3032,7 +3487,7 @@ Infrastructure Modification
 
 # Failure Engineering
 
-A key feature of the project will be deliberate failure injection.
+A key feature of the project is deliberate failure injection.
 
 Example scenario:
 
@@ -3060,7 +3515,25 @@ Service Recovery
 
 The Order Service has already been used for controlled database failure testing during the application observability stage.
 
-The full automated failure-detection and AI-analysis workflow will be implemented in later stages.
+The Gateway has also been deliberately stopped to validate the complete:
+
+```text
+Failure
+  ↓
+Prometheus Detection
+  ↓
+Alert Firing
+  ↓
+Alertmanager Delivery
+  ↓
+Service Recovery
+  ↓
+Alert Resolution
+```
+
+workflow.
+
+The full automated failure-analysis and AI-remediation workflow will be implemented in later stages.
 
 ---
 
@@ -3190,12 +3663,13 @@ The full automated failure-detection and AI-analysis workflow will be implemente
 * 8/8 User Service tests passing
 * 1/1 Gateway tests passing
 
-## Stage 7 — Prometheus Monitoring & Alerting ✅
+## Stage 7 — Prometheus Monitoring & Alert Rules ✅
 
 * Prometheus container
 * Prometheus persistent storage
 * Prometheus scrape configuration
 * 15-second scrape interval
+* 15-second evaluation interval
 * Gateway metrics scraping
 * User Service metrics scraping
 * Order Service metrics scraping
@@ -3209,6 +3683,7 @@ The full automated failure-detection and AI-analysis workflow will be implemente
 * Prometheus query verification
 * Application alert rules
 * Infrastructure alert rules
+* Database connection alert
 * `ServiceDown`
 * `HighHttp5xxErrorRate`
 * `HighRequestLatency`
@@ -3217,10 +3692,11 @@ The full automated failure-detection and AI-analysis workflow will be implemente
 * `HighMemoryUsage`
 * `LowFilesystemSpace`
 * `HighSystemLoad`
+* `DatabaseConnectionExhaustion`
 * Prometheus configuration validation
 * Prometheus rule validation
 * `promtool` verification
-* 8 alert rules successfully loaded
+* 9 alert rules successfully loaded
 
 ## Stage 8 — Grafana Dashboards ✅
 
@@ -3264,6 +3740,33 @@ The full automated failure-detection and AI-analysis workflow will be implemente
 * Grafana dashboard validation
 * All five dashboards visually verified with live data
 
+## Stage 9 — Alertmanager & Incident Alerting ✅
+
+* Alertmanager container
+* Alertmanager persistent storage
+* Alertmanager configuration
+* Prometheus → Alertmanager integration
+* Alert routing
+* Alert grouping
+* Alert lifecycle management
+* Default local receiver
+* Severity metadata
+* Service metadata
+* Environment metadata
+* Instance metadata
+* Alert annotations
+* Runbook annotations
+* `ServiceDown` alert verification
+* Real Gateway failure simulation
+* Prometheus firing-alert verification
+* Alertmanager active-alert verification
+* Gateway recovery verification
+* Prometheus alert-resolution verification
+* Alertmanager alert-resolution verification
+* Alertmanager configuration validation using `amtool`
+* Prometheus Alertmanager connection verification
+* End-to-end alert lifecycle testing
+
 ---
 
 # Current Architecture
@@ -3291,23 +3794,25 @@ The complete local application and observability platform now consists of:
                        Persistent Storage
 
 
-             ┌────────────────────────────────┐
-             │       Observability Layer      │
-             │                                │
-             │  ┌──────────────────────────┐  │
-             │  │       Prometheus         │  │
-             │  │          :9090            │  │
-             │  └────────────┬─────────────┘  │
-             │               │                │
-             │               ▼                │
-             │  ┌──────────────────────────┐  │
-             │  │         Grafana           │  │
-             │  │          :3000            │  │
-             │  └──────────────────────────┘  │
-             │                                │
-             │  Node Exporter :9100           │
-             │  PostgreSQL Exporter :9187     │
-             └────────────────────────────────┘
+             ┌───────────────────────────────────────┐
+             │           Observability Layer         │
+             │                                       │
+             │  ┌─────────────────────────────────┐  │
+             │  │          Prometheus             │  │
+             │  │             :9090               │  │
+             │  └──────────────┬──────────────────┘  │
+             │                 │                     │
+             │        ┌────────┴────────┐            │
+             │        │                 │            │
+             │        ▼                 ▼            │
+             │  ┌─────────────┐  ┌──────────────┐   │
+             │  │   Grafana   │  │ Alertmanager │   │
+             │  │    :3000    │  │    :9093     │   │
+             │  └─────────────┘  └──────────────┘   │
+             │                                       │
+             │  Node Exporter :9100                 │
+             │  PostgreSQL Exporter :9187           │
+             └───────────────────────────────────────┘
 ```
 
 The application components expose operational metrics through:
@@ -3323,9 +3828,10 @@ Spring Boot Actuator
         │
         ▼
     Prometheus
-        │
-        ▼
-     Grafana
+       / \
+      /   \
+     ▼     ▼
+Grafana  Alertmanager
 ```
 
 The current Prometheus monitoring layer collects:
@@ -3354,6 +3860,14 @@ with:
 41 total monitoring panels
 ```
 
+The current alerting layer provides:
+
+```text
+4 application alerts
+5 infrastructure/database alerts
+9 total alert rules
+```
+
 The complete application and monitoring environment can now be started reproducibly through:
 
 ```bash
@@ -3368,44 +3882,49 @@ The database uses a persistent Docker volume so application data survives Postgr
 
 Prometheus uses persistent storage for collected time-series data.
 
+Alertmanager uses persistent storage for alert-management state.
+
 Grafana dashboards and provisioning configuration are maintained as source-controlled files, making the monitoring environment reproducible.
 
 ---
 
 # Next Stage
 
-**Stage 9 — Alertmanager & Incident Notification** 🚧
+**Stage 10 — Structured Logging & Centralized Logs** 🚧
 
-The next stage will extend the current Prometheus alerting foundation into a complete alert-delivery pipeline.
+The next stage will extend the existing request logging and application logging foundation into a structured logging pipeline.
 
 Planned responsibilities include:
 
-* Alertmanager container
-* Prometheus → Alertmanager integration
-* Alert routing
-* Severity-based routing
-* Alert grouping
-* Alert deduplication
-* Alert inhibition
-* Notification configuration
-* Alert lifecycle verification
-* Failure simulation
-* End-to-end alert delivery testing
+* JSON structured logging
+* Consistent log fields
+* Correlation ID propagation into logs
+* Service identification
+* Log levels
+* Timestamp standardization
+* Centralized log collection
+* Log aggregation
+* Searchable application logs
+* Correlation between logs and Prometheus alerts
+* Incident-context preparation
+* Log-based operational troubleshooting
 
-The resulting flow will become:
+The resulting pipeline will begin to connect metrics, alerts, and logs:
 
 ```text
-Application / Infrastructure
-           │
-           ▼
-       Prometheus
-           │
-           │ Alert
-           ▼
-      Alertmanager
-           │
-           ▼
-    Notification Channel
+Applications
+     │
+     ├── Metrics ────────► Prometheus
+     │                       │
+     │                       └──► Alertmanager
+     │
+     └── Logs ───────────► Centralized Logging
+                               │
+                               ▼
+                         Incident Context
+                               │
+                               ▼
+                       AI Incident Analyzer
 ```
 
 Later stages will extend this into:
@@ -3430,6 +3949,8 @@ Incident Context Builder
               ▼
       Remediation Recommendation
 ```
+
+The long-term goal is to evolve the project into a portfolio-grade **AIOps and incident intelligence platform** capable of combining metrics, logs, alerts, service health, and failure context into actionable operational insights.
 
 ---
 

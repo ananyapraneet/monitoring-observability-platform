@@ -6,6 +6,12 @@ rule_files:
   - "rules/application.yml"
   - "rules/infrastructure.yml"
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
 scrape_configs:
   - job_name: "gateway"
     metrics_path: "/actuator/prometheus"

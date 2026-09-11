@@ -2,13 +2,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Production-style microservice monitoring and observability platform with Spring Boot, PostgreSQL, Docker, Micrometer, Prometheus, Grafana, Alertmanager, and AI-powered incident intelligence.
+Production-style microservice monitoring and observability platform with Spring Boot, PostgreSQL, Docker, Micrometer, Prometheus, Grafana, Alertmanager, structured logging, deterministic incident context generation, and a foundation for AI-powered incident intelligence.
 
 ## Overview
 
 This project demonstrates a production-oriented monitoring and observability platform designed around a distributed microservice application.
 
-The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized Prometheus monitoring, Grafana dashboards, Alertmanager-based incident detection and routing, structured logging, incident analysis, and AI-assisted AIOps capabilities.
+The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized Prometheus monitoring, Grafana dashboards, Alertmanager-based incident detection and routing, structured application logging, deterministic incident-context generation, and future AI-assisted AIOps capabilities.
 
 The system is designed around a clear separation of responsibilities:
 
@@ -18,8 +18,9 @@ The system is designed around a clear separation of responsibilities:
 * **Observability components** collect, store, visualize, and analyze operational data.
 * **Prometheus** collects and stores application and infrastructure metrics and evaluates alerting rules.
 * **Grafana** provides centralized operational dashboards for application, JVM, database, and service health monitoring.
-* **Alertmanager** receives firing alerts from Prometheus, groups them, and manages their alert lifecycle.
-* **AI components** analyze incident context and provide recommendations.
+* **Alertmanager** receives firing alerts from Prometheus, groups them, and routes them to the incident-context pipeline.
+* **Incident Context Builder** collects and normalizes alert, metric, health, HTTP error, log, and timeline evidence into deterministic incident context.
+* **AI components** are planned to analyze the generated incident context and provide recommendations.
 * **Deterministic automation** remains responsible for executing operational changes.
 
 The AI layer is therefore designed as a **read-only decision-support system**, rather than an autonomous system that directly modifies infrastructure or application state.
@@ -82,10 +83,17 @@ The current application and observability architecture is:
              └─────────────┘   └──────────────┘   └───────┬──────┘
                                                           │
                                                           ▼
-                                               Incident Context Builder
+                                               ┌──────────────────────┐
+                                               │ Incident Context      │
+                                               │ Builder               │
+                                               │       :8090           │
+                                               └──────────┬───────────┘
                                                           │
                                                           ▼
-                                                 AI Incident Analyzer
+                                               ┌──────────────────────┐
+                                               │ AI Incident Analyzer  │
+                                               │       Planned         │
+                                               └──────────────────────┘
 ```
 
 The application services expose operational metrics through **Spring Boot Actuator and Micrometer**.
@@ -103,6 +111,8 @@ Grafana uses Prometheus as its data source and provides operational dashboards c
 The current Grafana implementation contains **41 monitoring panels across 5 dashboards**.
 
 Prometheus sends firing alerts to Alertmanager, which manages alert grouping, routing, and lifecycle state.
+
+Alertmanager then forwards alerts to the **Incident Context Builder**, which collects and normalizes supporting operational evidence.
 
 The complete application and observability stack can be started locally through Docker Compose.
 
@@ -167,18 +177,21 @@ The complete application and observability stack can be started locally through 
 * Database connection pool metrics
 * PostgreSQL database metrics
 * Custom application metrics
+* Structured JSON application logging
+* Correlation IDs
+* Incident context generation
 
-### AI / AIOps
+### Incident Intelligence
 
-* AI-powered incident analysis
-* Alert correlation
-* Anomaly detection
-* Log analysis
-* Incident summarization
-* Root-cause analysis
-* Remediation recommendations
-
-The AI/AIOps components are planned for later stages.
+* Alertmanager webhook ingestion
+* Alert normalization
+* Prometheus evidence collection
+* Service health evidence collection
+* HTTP error evidence collection
+* Structured log parsing
+* Deterministic incident timelines
+* Best-effort evidence collection
+* AI-powered incident analysis — planned
 
 ---
 
@@ -273,6 +286,31 @@ monitoring-observability-platform/
 │   │   ├── mvnw.cmd
 │   │   └── HELP.md
 │
+├── incident-context/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/
+│   │   │   │   └── com/ananyapraneet/monitoring/incidentcontext/
+│   │   │   │       ├── config/
+│   │   │   │       ├── controller/
+│   │   │   │       ├── health/
+│   │   │   │       ├── http/
+│   │   │   │       ├── log/
+│   │   │   │       ├── metrics/
+│   │   │   │       ├── model/
+│   │   │   │       ├── service/
+│   │   │   │       ├── timeline/
+│   │   │   │       ├── webhook/
+│   │   │   │       └── IncidentContextApplication.java
+│   │   │   └── resources/
+│   │   │       └── application.yml
+│   │   ├── test/
+│   │   │   └── java/
+│   │   │       └── com/ananyapraneet/monitoring/incidentcontext/
+│   │   ├── Dockerfile
+│   │   ├── pom.xml
+│   │   └── mvnw
+│
 ├── monitoring/
 │   ├── prometheus/
 │   │   ├── prometheus.yml
@@ -356,6 +394,8 @@ The service includes:
 * Custom business metrics
 * Docker containerization
 * Container health check
+* Structured JSON request logging
+* Correlation ID support
 
 The User Service runs on:
 
@@ -417,6 +457,8 @@ The service includes:
 * Structured HTTP error responses
 * Transaction management
 * Application-level logging
+* Structured JSON request logging
+* Correlation ID support
 * Actuator health endpoint
 * Actuator metrics endpoint
 * Micrometer instrumentation
@@ -482,7 +524,7 @@ The Gateway currently provides:
 * Correlation ID generation
 * Correlation ID preservation
 * Correlation ID propagation
-* Basic request-completion logging
+* Request-completion logging
 * Downstream HTTP error propagation
 * Gateway health endpoint
 * Gateway metrics endpoint
@@ -496,7 +538,7 @@ The Gateway currently provides:
 
 # Correlation IDs
 
-The Gateway uses the:
+The platform uses the:
 
 ```text
 X-Correlation-ID
@@ -508,7 +550,9 @@ If a client provides a correlation ID, the Gateway preserves it.
 
 If no correlation ID is provided, the Gateway generates a UUID.
 
-The correlation ID is also forwarded to downstream services through the Gateway's `RestClient` configuration.
+The correlation ID is forwarded to downstream services.
+
+The application services also place the correlation ID into the logging context so that structured logs can be associated with individual requests.
 
 Example:
 
@@ -522,30 +566,55 @@ API Gateway
   │ X-Correlation-ID: abc-123
   ▼
 Order Service
+  │
+  │ requestId = abc-123
+  ▼
+Structured Application Log
 ```
 
-This establishes the foundation for distributed request observability and structured logging.
+This establishes the foundation for distributed request observability and incident evidence correlation.
 
 ---
 
-# Gateway Request Logging
+# Structured Application Logging
 
-The Gateway currently performs basic request-completion logging.
+The platform implements structured JSON request logging in the Gateway, User Service, and Order Service.
+
+Each completed HTTP request can produce machine-readable logging information including:
+
+```text
+timestamp
+level
+requestId
+service
+logger
+message
+```
+
+The request-completion log contains information such as:
+
+```text
+HTTP method
+endpoint
+HTTP status
+request duration
+```
 
 Example:
 
-```text
-Request completed: method=GET uri=/api/orders/2 status=200 correlationId=test-correlation-789
+```json
+{
+  "timestamp": "2026-09-11T09:18:33.429500445Z",
+  "level": "INFO",
+  "requestId": "5a0dcbed-3b55-46ce-8ee8-75729cae4799",
+  "service": "order-service",
+  "message": "HTTP request completed: method=GET endpoint=/orders/999999999 status=404 durationMs=911"
+}
 ```
 
-The request logging filter records:
+The logging implementation uses correlation IDs through the application logging context.
 
-* HTTP method
-* Request URI
-* HTTP response status
-* Correlation ID
-
-More comprehensive structured application logging will be introduced during the dedicated logging stage.
+This makes application logs suitable for machine processing and future centralized log ingestion.
 
 ---
 
@@ -587,7 +656,7 @@ This prevents downstream application errors from being converted into generic Ga
 
 # Service Independence
 
-The platform currently contains two independently deployable Spring Boot business services and one API Gateway:
+The platform currently contains two independently deployable Spring Boot business services, one API Gateway, and a dedicated incident-context service:
 
 ```text
                          API Gateway
@@ -606,6 +675,13 @@ The platform currently contains two independently deployable Spring Boot busines
                               ▼
                          PostgreSQL
                             :5432
+
+
+                         Alertmanager
+                              │
+                              ▼
+                    Incident Context Builder
+                            :8090
 ```
 
 Both business services use the same PostgreSQL instance during local development while maintaining **separate database schemas and Flyway migration histories**.
@@ -616,58 +692,16 @@ This provides service-level schema isolation while keeping the local development
 
 # Dockerized Local Platform
 
-The complete application and observability stack can now be started through Docker Compose.
+The complete application and observability stack can be started through Docker Compose.
 
 The Dockerized platform consists of:
-
-```text
-┌──────────────────────────────────────────────────────────┐
-│                  Docker Compose Platform                 │
-│                                                          │
-│  ┌──────────────┐                                        │
-│  │ API Gateway  │ :8082                                  │
-│  └──────┬───────┘                                        │
-│         │                                                │
-│    ┌────┴────┐                                           │
-│    ▼         ▼                                           │
-│ ┌───────┐ ┌───────────────┐                              │
-│ │ User  │ │    Order      │                              │
-│ │ :8080 │ │    :8081      │                              │
-│ └───┬───┘ └───────┬───────┘                              │
-│     │             │                                      │
-│     └──────┬──────┘                                      │
-│            ▼                                             │
-│     ┌──────────────┐                                     │
-│     │  PostgreSQL  │ :5432                               │
-│     └──────┬───────┘                                     │
-│            │                                             │
-│            ▼                                             │
-│     postgres-data                                        │
-│     persistent volume                                    │
-│                                                          │
-│  ┌────────────────┐       ┌─────────────────────────┐    │
-│  │   Prometheus   │──────►│        Grafana          │    │
-│  │     :9090      │       │         :3000           │    │
-│  └───────┬────────┘       └─────────────────────────┘    │
-│          │                                               │
-│          ├──────► Node Exporter :9100                    │
-│          │                                               │
-│          ├──────► PostgreSQL Exporter :9187              │
-│          │                                               │
-│          └──────► Alertmanager :9093                     │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
-
-## Docker Compose Services
-
-The Compose platform currently contains:
 
 ```text
 postgres
 user-service
 order-service
 gateway
+incident-context
 prometheus
 alertmanager
 node-exporter
@@ -681,9 +715,7 @@ All services communicate through the dedicated Docker bridge network:
 monitoring-network
 ```
 
-Docker service names are used for internal communication.
-
-For example:
+## Internal Service Communication
 
 ```text
 Gateway → http://user-service:8080
@@ -700,7 +732,13 @@ Prometheus → postgres-exporter:9187
 
 Grafana → http://prometheus:9090
 
-Prometheus → http://alertmanager:9093
+Prometheus → alertmanager:9093
+
+Alertmanager → http://incident-context:8090/api/v1/alerts
+
+Incident Context Builder → http://prometheus:9090
+Incident Context Builder → http://user-service:8080
+Incident Context Builder → http://order-service:8081
 ```
 
 ## Start the Complete Platform
@@ -721,10 +759,6 @@ Run:
 docker compose ps
 ```
 
-The application services should report healthy.
-
-The observability services should report as running.
-
 Expected services include:
 
 ```text
@@ -732,12 +766,17 @@ monitoring-postgres
 monitoring-user-service
 monitoring-order-service
 monitoring-api-gateway
+monitoring-incident-context
 monitoring-prometheus
 monitoring-alertmanager
 monitoring-node-exporter
 monitoring-postgres-exporter
 monitoring-grafana
 ```
+
+The application services and Incident Context Builder use Docker health checks.
+
+---
 
 ## Container Health Checks
 
@@ -759,7 +798,9 @@ The Gateway depends on the User Service and Order Service becoming healthy befor
 
 The User Service and Order Service depend on PostgreSQL becoming healthy.
 
-This establishes the following startup dependency chain:
+Incident Context Builder exposes its own health endpoint and Alertmanager waits for the Incident Context Builder to become healthy before activating its webhook dependency.
+
+This establishes the following dependency chain:
 
 ```text
 PostgreSQL
@@ -770,11 +811,20 @@ PostgreSQL
                            │
                            ▼
                      API Gateway
+
+
+Prometheus
+    │
+    ▼
+Alertmanager
+    │
+    ▼
+Incident Context Builder
 ```
 
 Prometheus depends on the application services being available before starting its monitoring workload.
 
-Alertmanager depends on Prometheus being started before the alert-delivery pipeline becomes active.
+---
 
 ## Non-Root Containers
 
@@ -795,6 +845,8 @@ eclipse-temurin:17-jre
 
 This reduces the final runtime image footprint and avoids running the application as root.
 
+---
+
 ## Persistent PostgreSQL Storage
 
 PostgreSQL uses a named Docker volume:
@@ -813,6 +865,8 @@ This ensures PostgreSQL data survives container recreation and restart.
 
 Persistence was verified by restarting the PostgreSQL container and successfully retrieving previously stored application data afterward.
 
+---
+
 ## Prometheus Storage
 
 Prometheus uses a named Docker volume:
@@ -828,6 +882,8 @@ The volume is mounted to:
 ```
 
 This provides persistent Prometheus time-series storage across container recreation.
+
+---
 
 ## Grafana Storage
 
@@ -857,6 +913,8 @@ monitoring/grafana/provisioning/
 
 This keeps the dashboard environment reproducible through source control.
 
+---
+
 ## Alertmanager Storage
 
 Alertmanager uses a named Docker volume:
@@ -872,6 +930,8 @@ The volume is mounted to:
 ```
 
 This provides persistent Alertmanager state across container recreation.
+
+---
 
 ## Docker Network
 
@@ -974,7 +1034,7 @@ Flyway remains responsible for database schema evolution.
 
 # Health Checks
 
-Spring Boot Actuator provides health endpoints for all application services and the Gateway.
+Spring Boot Actuator provides health endpoints for all application services, the Gateway, and the Incident Context Builder.
 
 ## User Service
 
@@ -994,10 +1054,20 @@ GET http://localhost:8081/actuator/health
 GET http://localhost:8082/actuator/health
 ```
 
+## Incident Context Builder
+
+```text
+GET http://localhost:8090/actuator/health
+```
+
 Example response:
 
 ```json
 {
+  "groups": [
+    "liveness",
+    "readiness"
+  ],
   "status": "UP"
 }
 ```
@@ -1012,7 +1082,7 @@ They form the foundation for service-health monitoring and failure detection.
 
 ## Actuator Endpoints
 
-All three application components expose the following Actuator endpoints:
+The application services and Gateway expose the following Actuator endpoints:
 
 ```text
 /actuator/health
@@ -1020,6 +1090,8 @@ All three application components expose the following Actuator endpoints:
 /actuator/metrics
 /actuator/prometheus
 ```
+
+The Incident Context Builder exposes health and information endpoints required for its operational lifecycle.
 
 The Prometheus endpoint exposes Micrometer metrics in Prometheus exposition format.
 
@@ -1114,8 +1186,6 @@ Description:
 Total number of users successfully created
 ```
 
-The counter is incremented after a user has been successfully persisted.
-
 ### Service Request Counter
 
 ```text
@@ -1127,8 +1197,6 @@ Description:
 ```text
 Total number of requests handled by the User Service
 ```
-
-The counter is incremented for User Service controller requests.
 
 ## Order Service Metrics
 
@@ -1144,8 +1212,6 @@ Description:
 Total number of orders successfully created
 ```
 
-The counter is incremented after an order has been successfully persisted.
-
 ### Failed Order Creation Counter
 
 ```text
@@ -1157,8 +1223,6 @@ Description:
 ```text
 Total number of failed order creation attempts
 ```
-
-The counter is incremented when order creation fails during persistence.
 
 The implementation uses `saveAndFlush()` so persistence failures occur inside the service's error-handling boundary and can be recorded by the custom failure counter.
 
@@ -1185,7 +1249,6 @@ Exception
 Error
 Request count
 Total request time
-Maximum request time
 ```
 
 Prometheus exposes the metric as:
@@ -1395,30 +1458,6 @@ Node Exporter ────────┤
 PostgreSQL Exporter ──┘
 ```
 
-## Target Verification
-
-Prometheus target health was verified for:
-
-```text
-gateway
-user-service
-order-service
-node-exporter
-postgres
-```
-
-Application target health is represented by:
-
-```promql
-up
-```
-
-PostgreSQL availability is represented by:
-
-```promql
-pg_up
-```
-
 ---
 
 # Prometheus Alert Rules
@@ -1441,9 +1480,7 @@ The current implementation contains:
 9 total alert rules
 ```
 
-All alert rules include operational metadata appropriate for incident handling.
-
-Required labels include:
+Required alert metadata includes:
 
 ```text
 service
@@ -1452,8 +1489,6 @@ environment
 alertname
 instance
 ```
-
-`alertname` is automatically assigned by Prometheus from the alert rule name.
 
 ## Application Alerts
 
@@ -1497,15 +1532,6 @@ Severity:
 warning
 ```
 
-The rule preserves both:
-
-```text
-job
-instance
-```
-
-so an alert identifies the affected application target.
-
 ### HighRequestLatency
 
 Detects P95 HTTP request latency above:
@@ -1525,15 +1551,6 @@ Severity:
 ```text
 warning
 ```
-
-The histogram-based query retains:
-
-```text
-job
-instance
-```
-
-labels while using the `le` bucket dimension required for percentile calculation.
 
 ### HighJvmMemoryUsage
 
@@ -1637,8 +1654,6 @@ Severity:
 warning
 ```
 
-The current threshold reflects the four-CPU Linux environment used by the Dockerized monitoring stack.
-
 > **Note:** Node Exporter is currently running inside the Docker environment on macOS. Its infrastructure metrics therefore represent the Linux environment available to the containerized stack rather than the physical Mac host's 
 hardware resources.
 
@@ -1671,8 +1686,6 @@ pg_stat_database_numbackends
 pg_settings_max_connections
 ```
 
-and identifies the affected PostgreSQL exporter instance.
-
 ---
 
 # Alert Metadata
@@ -1691,7 +1704,7 @@ environment
 instance
 ```
 
-Examples:
+Example:
 
 ```text
 alertname: ServiceDown
@@ -1725,13 +1738,13 @@ Check the service container, application logs,
 health endpoint, and downstream dependencies.
 ```
 
-The runbook annotation establishes a foundation for the future incident-context and AI-analysis stages.
+The metadata is consumed by the Incident Context Builder during alert normalization.
 
 ---
 
 # Alertmanager
 
-Alertmanager provides the alert-management layer between Prometheus and future notification and incident-intelligence components.
+Alertmanager provides the alert-management layer between Prometheus and the Incident Context Builder.
 
 Alertmanager runs on:
 
@@ -1752,8 +1765,6 @@ Prometheus is configured to send alerts to:
 ```text
 http://alertmanager:9093
 ```
-
-The active Alertmanager target was verified through the Prometheus API.
 
 The resulting flow is:
 
@@ -1780,8 +1791,6 @@ severity
 environment
 ```
 
-This prevents related alerts from being treated as completely independent notification events.
-
 The current grouping configuration uses:
 
 ```text
@@ -1790,19 +1799,34 @@ group_interval: 5m
 repeat_interval: 4h
 ```
 
-## Default Receiver
+## Incident Context Receiver
 
-The current configuration uses a local default receiver:
+The active Alertmanager receiver is:
 
 ```text
-default
+incident-context
 ```
 
-No external email, Slack, PagerDuty, or other notification integration is currently configured.
+It forwards alerts to:
 
-This keeps the project self-contained while establishing the complete Prometheus → Alertmanager alert-management pipeline.
+```text
+http://incident-context:8090/api/v1/alerts
+```
 
-External notification integrations can be added later without changing the core alert rules.
+The resulting pipeline is:
+
+```text
+Prometheus
+    │
+    ▼
+Alertmanager
+    │
+    │ webhook
+    ▼
+Incident Context Builder
+```
+
+This replaces the earlier local-only default receiver and establishes the incident-data pipeline.
 
 ## Alertmanager Configuration Validation
 
@@ -1820,128 +1844,712 @@ The configuration passed validation successfully.
 
 ---
 
-# Alerting End-to-End Verification
+# Incident Data Pipeline
 
-The Alertmanager pipeline was verified using a controlled service failure.
+The Incident Data Pipeline is the foundation for the platform's future AI incident-intelligence layer.
 
-## Failure Simulation
+Its responsibility is to collect operational evidence **before** that evidence is passed to an AI analyzer.
 
-The Gateway was deliberately stopped:
-
-```bash
-docker compose stop gateway
-```
-
-Prometheus detected:
+The current architecture is:
 
 ```text
-up{job="gateway"} == 0
+                         Alertmanager
+                              │
+                              │ webhook
+                              ▼
+                    ┌─────────────────────┐
+                    │ Incident Context    │
+                    │ Builder :8090       │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+              ▼                ▼                ▼
+          Prometheus       Service Health    HTTP Errors
+          Metrics             │                │
+              │               │                │
+              └───────────────┼────────────────┘
+                              │
+                              ▼
+                     Structured Log Parser
+                              │
+                              ▼
+                       Timeline Builder
+                              │
+                              ▼
+                     Incident Context JSON
+                              │
+                              ▼
+                    AI Incident Analyzer
+                         (planned)
 ```
 
-After the configured one-minute alert duration, Prometheus produced a firing:
+The Incident Context Builder is intentionally a separate service from the AI analyzer.
+
+This creates a controlled boundary between:
 
 ```text
-ServiceDown
-```
-
-alert.
-
-The observed alert metadata included:
-
-```text
-alertname    = ServiceDown
-environment  = local
-instance     = gateway:8082
-job          = gateway
-service      = gateway
-severity     = critical
-```
-
-Prometheus reported the alert as:
-
-```text
-state = firing
-```
-
-## Alertmanager Verification
-
-The same alert was successfully received by Alertmanager.
-
-Alertmanager reported:
-
-```text
-state = active
-receiver = default
-```
-
-This verified the complete alert-delivery path:
-
-```text
-Gateway Failure
-      │
-      ▼
-Prometheus
-      │
-      │ ServiceDown
-      ▼
-Alertmanager
-      │
-      ▼
-Active Alert
-```
-
-## Recovery Verification
-
-The Gateway was then restarted:
-
-```bash
-docker compose start gateway
-```
-
-The Gateway became healthy again:
-
-```text
-health: healthy
+Evidence Collection
 ```
 
 and:
 
-```bash
-curl -s http://localhost:8082/actuator/health
+```text
+AI Interpretation
 ```
 
-returned:
+The AI layer therefore does not need unrestricted direct access to Prometheus, application services, or raw infrastructure data.
 
-```json
-{
-  "groups": [
-    "liveness",
-    "readiness"
-  ],
-  "status": "UP"
-}
-```
+---
 
-After Prometheus reevaluated the target, the active alert was cleared.
+# Incident Context Builder
 
-Prometheus returned:
-
-```json
-{
-  "status": "success",
-  "data": {
-    "alerts": []
-  }
-}
-```
-
-Alertmanager also returned no active alerts:
+The Incident Context Builder runs on:
 
 ```text
-[]
+http://localhost:8090
 ```
 
-This verified both **alert firing and alert recovery**.
+Health endpoint:
+
+```text
+GET /actuator/health
+```
+
+Alert ingestion endpoint:
+
+```text
+POST /api/v1/alerts
+```
+
+## Alertmanager Webhook
+
+The service accepts Alertmanager webhook payloads containing:
+
+```text
+receiver
+status
+groupKey
+truncatedAlerts
+alerts
+```
+
+Each alert can contain:
+
+```text
+status
+labels
+annotations
+startsAt
+endsAt
+generatorURL
+fingerprint
+```
+
+The incoming alert is normalized into a stable internal representation.
+
+---
+
+# Alert Evidence
+
+Alertmanager alerts are normalized into:
+
+```text
+AlertEvidence
+```
+
+The normalized representation includes:
+
+```text
+alertName
+status
+severity
+service
+instance
+summary
+description
+runbook
+labels
+```
+
+This removes dependency on the exact structure of the upstream Alertmanager payload while preserving the operational information required for incident analysis.
+
+---
+
+# Prometheus Metric Evidence
+
+The Incident Context Builder queries Prometheus for service-level evidence.
+
+Current metrics include:
+
+```text
+http_5xx_rate
+request_rate
+```
+
+The service uses PromQL based on the affected application's Prometheus job:
+
+```text
+http_server_requests_seconds_count{job="<service>"}
+```
+
+For HTTP 5xx evidence:
+
+```text
+sum(
+  rate(
+    http_server_requests_seconds_count{
+      job="<service>",
+      status=~"5.."
+    }[5m]
+  )
+)
+```
+
+For request rate:
+
+```text
+sum(
+  rate(
+    http_server_requests_seconds_count{
+      job="<service>"
+    }[5m]
+  )
+)
+```
+
+The collected Prometheus response is preserved as structured evidence rather than converted into fabricated values.
+
+---
+
+# Health Evidence
+
+The Incident Context Builder can query the health endpoint of the affected application service.
+
+Currently supported application services are:
+
+```text
+user-service
+order-service
+```
+
+Configured internal URLs are:
+
+```text
+http://user-service:8080
+http://order-service:8081
+```
+
+Health evidence is represented as:
+
+```text
+HealthEvidence
+```
+
+containing:
+
+```text
+status
+components
+```
+
+Example:
+
+```json
+{
+  "status": "UP",
+  "components": {}
+}
+```
+
+Unknown services are handled safely and produce:
+
+```json
+{
+  "status": "UNKNOWN",
+  "components": {}
+}
+```
+
+---
+
+# HTTP Error Evidence
+
+The Incident Context Builder queries Prometheus for HTTP 4xx and 5xx request metrics associated with the affected service.
+
+The evidence is normalized into:
+
+```text
+HttpErrorEvidence
+```
+
+containing:
+
+```text
+timestamp
+method
+endpoint
+status
+service
+requestId
+message
+```
+
+Example:
+
+```json
+{
+  "timestamp": "2026-09-11T11:02:32.926Z",
+  "method": "GET",
+  "endpoint": "/orders/{id}",
+  "status": 404,
+  "service": "order-service",
+  "requestId": null,
+  "message": null
+}
+```
+
+This allows an incident context to identify concrete HTTP failures associated with an affected service.
+
+---
+
+# Structured Log Evidence
+
+The application services produce structured JSON logs containing fields such as:
+
+```text
+timestamp
+level
+requestId
+service
+message
+exception
+```
+
+The Incident Context Builder includes a structured-log parser capable of converting these JSON records into:
+
+```text
+LogEvidence
+```
+
+The parser validates required fields and safely ignores malformed records.
+
+The current production log client intentionally returns an empty collection because a centralized log-ingestion backend has **not yet been implemented**.
+
+This is deliberate.
+
+The Incident Context Builder does **not** read Docker container logs directly and does not depend on the Docker socket.
+
+The current architecture therefore separates:
+
+```text
+Structured Log Format
+        │
+        ▼
+Structured Log Parser
+        │
+        ▼
+Future Centralized Log Backend
+```
+
+Centralized log ingestion will be introduced in a later observability stage.
+
+---
+
+# Deterministic Incident Timeline
+
+The Incident Context Builder creates a deterministic timeline from available evidence.
+
+Timeline events currently include:
+
+```text
+ALERT_FIRING
+ALERT_RESOLVED
+HTTP_ERROR
+LOG_EVENT
+```
+
+Events are ordered chronologically.
+
+Alert start events are created from:
+
+```text
+startsAt
+```
+
+Resolved alert events are created only when a valid Alertmanager end timestamp is available.
+
+The Alertmanager placeholder timestamp:
+
+```text
+0001-01-01T00:00:00Z
+```
+
+is ignored.
+
+Null or invalid timestamps are ignored rather than fabricated.
+
+HTTP error timestamps come from Prometheus samples.
+
+Structured log timestamps come from the structured log records.
+
+The timeline therefore represents observed evidence rather than synthetic incident events.
+
+---
+
+# Incident Context Format
+
+The Incident Context Builder produces a deterministic JSON structure:
+
+```json
+{
+  "incident": "APIErrorRateHigh",
+  "severity": "HIGH",
+  "service": "order-service",
+  "alerts": [],
+  "metrics": {},
+  "logs": [],
+  "health": {},
+  "httpErrors": [],
+  "timeline": []
+}
+```
+
+The complete domain model contains:
+
+```text
+IncidentContext
+AlertEvidence
+LogEvidence
+HealthEvidence
+HttpErrorEvidence
+TimelineEvent
+```
+
+The structure provides a stable contract for future AI incident analysis.
+
+---
+
+# Incident Context Example
+
+A controlled Docker E2E request using:
+
+```text
+APIErrorRateHigh
+```
+
+for:
+
+```text
+order-service
+```
+
+produced incident context containing:
+
+```text
+Incident:
+APIErrorRateHigh
+
+Severity:
+HIGH
+
+Service:
+order-service
+
+Metrics:
+http_5xx_rate
+request_rate
+
+Health:
+UP
+
+HTTP Errors:
+GET /orders/{id} → 404
+
+Logs:
+empty
+```
+
+The generated timeline contained:
+
+```text
+10:00:00Z  ALERT_FIRING
+11:02:32Z  HTTP_ERROR
+```
+
+This demonstrates that the Incident Context Builder can combine independent evidence sources into a single deterministic incident representation.
+
+---
+
+# Incident Pipeline Resilience
+
+The incident pipeline is designed around **best-effort evidence collection**.
+
+A failure in one evidence source should not cause the entire incident context request to fail.
+
+## Empty Alert List
+
+If Alertmanager sends an empty alert list, the service returns:
+
+```json
+{
+  "incident": "UnknownIncident",
+  "severity": "unknown",
+  "service": "unknown",
+  "alerts": [],
+  "metrics": {},
+  "logs": [],
+  "health": {
+    "status": "UNKNOWN",
+    "components": {}
+  },
+  "httpErrors": [],
+  "timeline": []
+}
+```
+
+No server error is generated.
+
+## Missing Labels or Annotations
+
+Missing Alertmanager labels and annotations are normalized safely.
+
+The service does not fail when optional alert metadata is absent.
+
+## Unknown Service
+
+If an alert references an unknown service:
+
+```text
+payment-service
+```
+
+the Incident Context Builder safely handles the unknown service.
+
+The unsupported health check returns:
+
+```text
+UNKNOWN
+```
+
+and the evidence pipeline continues without generating an application error.
+
+## Prometheus Unavailable
+
+If Prometheus is unavailable, the Prometheus clients return empty evidence rather than failing the complete incident-context request.
+
+Metrics therefore degrade to empty collections while the rest of the incident context can still be constructed.
+
+This behavior prevents a temporary monitoring-backend failure from turning an incident webhook into a `500 Internal Server Error`.
+
+---
+
+# Incident Data Pipeline Verification
+
+The complete Incident Data Pipeline was verified inside the Docker Compose environment.
+
+The verified path is:
+
+```text
+Alertmanager
+     │
+     ▼
+incident-context:8090
+     │
+     ├──► Prometheus :9090
+     │
+     ├──► order-service :8081
+     │
+     ├──► HTTP error evidence
+     │
+     └──► deterministic timeline
+```
+
+A controlled Alertmanager-compatible webhook request was submitted to:
+
+```text
+POST http://localhost:8090/api/v1/alerts
+```
+
+The resulting response successfully contained:
+
+```text
+APIErrorRateHigh
+HIGH
+order-service
+Prometheus metrics
+UP health status
+HTTP 404 evidence
+Timeline events
+```
+
+The actual Docker E2E response included:
+
+```text
+incident = APIErrorRateHigh
+severity = HIGH
+service = order-service
+health = UP
+```
+
+and HTTP error evidence:
+
+```text
+GET /orders/{id}
+status = 404
+```
+
+The timeline contained:
+
+```text
+ALERT_FIRING
+HTTP_ERROR
+```
+
+This verified:
+
+* Alert webhook ingestion
+* Alert normalization
+* Prometheus connectivity
+* Metric collection
+* Service health collection
+* HTTP error collection
+* Timeline construction
+* Docker networking
+* Incident Context Builder container health
+
+---
+
+# Testing
+
+The Incident Context Builder currently contains automated tests covering its major components.
+
+## Incident Context Builder Test Suite
+
+Current final test result:
+
+```text
+22 tests
+22 passed
+0 failures
+0 errors
+```
+
+The test suite covers:
+
+* Prometheus metric queries
+* Prometheus unavailable behavior
+* Incident context model serialization
+* Health HTTP client behavior
+* Alertmanager webhook controller
+* HTTP error evidence collection
+* Prometheus unavailable HTTP-error behavior
+* Structured log parsing
+* Incident context building
+* Timeline generation
+* Alert normalization
+* Application context startup
+
+The full test suite is run with:
+
+```bash
+./mvnw test
+```
+
+from:
+
+```text
+incident-context/
+```
+
+The final Stage 11 implementation passed:
+
+```text
+Tests run: 22
+Failures: 0
+Errors: 0
+Skipped: 0
+
+BUILD SUCCESS
+```
+
+---
+
+## Order Service
+
+The current Order Service test suite contains:
+
+```text
+16 tests
+16 passed
+0 failures
+0 errors
+```
+
+Run:
+
+```bash
+cd order-service
+./mvnw clean test
+```
+
+Current coverage includes:
+
+* Application context startup
+* Order creation
+* Order retrieval
+* Order listing
+* Order update
+* Order deletion
+* Missing-order handling
+* Request validation
+* Controller HTTP status codes
+* Controller request/response behavior
+* Service-layer repository interactions
+* Successful order creation metric
+* Failed order creation metric
+
+---
+
+## User Service
+
+The current User Service test suite contains:
+
+```text
+8 tests
+8 passed
+0 failures
+0 errors
+```
+
+Run:
+
+```bash
+cd user-service
+./mvnw clean test
+```
+
+---
+
+## API Gateway
+
+The current Gateway test suite contains:
+
+```text
+1 test
+1 passed
+0 failures
+0 errors
+```
+
+Run:
+
+```bash
+cd gateway
+./mvnw clean test
+```
+
+The Gateway was also manually verified through end-to-end requests to both business services.
 
 ---
 
@@ -1963,25 +2571,21 @@ http://prometheus:9090
 
 The data source and dashboards are provisioned automatically through source-controlled configuration.
 
-Grafana dashboard provisioning is defined in:
-
-```text
-monitoring/grafana/provisioning/
-```
-
-Dashboard JSON definitions are stored in:
-
-```text
-monitoring/grafana/dashboards/
-```
-
 The current implementation contains **5 dashboards with 41 panels**.
+
+Available dashboards:
+
+```text
+Platform Overview
+Application Performance
+JVM
+Database
+Service Health
+```
 
 ---
 
 ## Dashboard 1 — Platform Overview
-
-The Platform Overview dashboard provides a high-level operational view of the entire platform.
 
 ### Panels
 
@@ -1997,20 +2601,9 @@ The Platform Overview dashboard provides a high-level operational view of the en
 9. P99 Request Latency
 ```
 
-The dashboard provides an immediate answer to:
-
-```text
-Are the core services available?
-Is traffic flowing?
-Are requests failing?
-Is request latency increasing?
-```
-
 ---
 
 ## Dashboard 2 — Application Performance
-
-The Application Performance dashboard focuses on HTTP-level application behavior.
 
 ### Panels
 
@@ -2024,19 +2617,9 @@ The Application Performance dashboard focuses on HTTP-level application behavior
 7. Top Request URIs
 ```
 
-This dashboard provides visibility into:
-
-* Application throughput
-* Request latency
-* HTTP response distribution
-* Request methods
-* Frequently accessed endpoints
-
 ---
 
 ## Dashboard 3 — JVM
-
-The JVM dashboard focuses on runtime health across the three Spring Boot services.
 
 ### Panels
 
@@ -2050,20 +2633,9 @@ The JVM dashboard focuses on runtime health across the three Spring Boot service
 7. JVM CPU Usage
 ```
 
-The dashboard provides visibility into:
-
-* Heap pressure
-* JVM memory allocation
-* Non-heap memory
-* Garbage collection activity
-* Thread count
-* Application CPU utilization
-
 ---
 
 ## Dashboard 4 — Database
-
-The Database dashboard focuses on PostgreSQL operational health and activity.
 
 ### Panels
 
@@ -2080,24 +2652,9 @@ The Database dashboard focuses on PostgreSQL operational health and activity.
 10. Background Writer Activity
 ```
 
-The dashboard provides visibility into:
-
-* PostgreSQL availability
-* Connection utilization
-* Database growth
-* Transaction activity
-* Read activity
-* Write activity
-* Cache effectiveness
-* Deadlocks
-* Temporary file generation
-* Background writer behavior
-
 ---
 
 ## Dashboard 5 — Service Health
-
-The Service Health dashboard provides an operational view of individual service availability and service-level behavior.
 
 ### Panels
 
@@ -2110,16 +2667,6 @@ The Service Health dashboard provides an operational view of individual service 
 6. Service Request Rate
 7. Service Error Rate
 8. Service P95 Latency
-```
-
-The dashboard makes it possible to quickly identify:
-
-```text
-Which service is unavailable?
-Is PostgreSQL healthy?
-Which service is receiving traffic?
-Are services producing 5xx errors?
-Which service has elevated latency?
 ```
 
 ---
@@ -2142,8 +2689,6 @@ The configured endpoint is:
 http://prometheus:9090
 ```
 
-The data source is configured as the default Grafana data source.
-
 ## Dashboard Provider
 
 Dashboard provisioning is configured using:
@@ -2158,7 +2703,7 @@ The provider loads dashboard definitions from:
 /var/lib/grafana/dashboards
 ```
 
-The Docker Compose configuration mounts the repository directory:
+The Docker Compose configuration mounts:
 
 ```text
 ./monitoring/grafana/dashboards
@@ -2220,20 +2765,6 @@ and returned:
 1
 ```
 
-indicating a healthy PostgreSQL connection.
-
-PostgreSQL activity metrics such as:
-
-```text
-pg_stat_database_numbackends
-pg_stat_database_xact_commit
-pg_stat_database_blks_hit
-pg_stat_database_blks_read
-pg_stat_database_tup_fetched
-```
-
-were also successfully queried through Prometheus.
-
 ## HTTP Metrics
 
 The application services expose:
@@ -2294,6 +2825,22 @@ Alertmanager successfully:
 * Received a real `ServiceDown` alert
 * Reported the alert as active
 * Cleared the alert after service recovery
+* Forwarded alerts to the Incident Context Builder
+
+## Incident Context Builder
+
+The Incident Context Builder successfully:
+
+* Started as a Docker Compose service
+* Passed its Docker health check
+* Accepted Alertmanager webhook payloads
+* Normalized Alertmanager alerts
+* Queried Prometheus
+* Queried application health endpoints
+* Collected HTTP error evidence
+* Parsed structured log records through its parser
+* Constructed deterministic timelines
+* Returned resilient responses when evidence sources were unavailable
 
 ## Grafana
 
@@ -2372,8 +2919,6 @@ http.server.requests
 
 metric was verified with HTTP status and outcome dimensions.
 
-The `500` and `503` measurements were generated during deliberate database outage testing and demonstrate that failed requests are visible through the HTTP metrics pipeline.
-
 The custom metrics:
 
 ```text
@@ -2382,14 +2927,6 @@ orders_failed_total
 ```
 
 were registered and verified.
-
-A successful order creation incremented:
-
-```text
-orders_created_total
-```
-
-A simulated persistence failure was handled by the service and verified through the failure counter unit test.
 
 ## API Gateway Metrics
 
@@ -2412,29 +2949,13 @@ disk.free
 disk.total
 ```
 
-and additional Spring Boot runtime metrics.
-
 Gateway HTTP metrics were verified using:
 
 ```bash
 curl -s http://localhost:8082/actuator/metrics/http.server.requests
 ```
 
-After generating:
-
-```bash
-curl -s http://localhost:8082/api/users
-```
-
-the Gateway metrics included:
-
-```text
-/api/users
-```
-
-as a tracked URI.
-
-The metric captured:
+The metric captures:
 
 ```text
 HTTP method
@@ -2447,8 +2968,6 @@ request count
 total request time
 maximum request time
 ```
-
-This confirms that the Gateway is observable as a first-class component of the platform rather than merely acting as a routing layer.
 
 ---
 
@@ -2498,379 +3017,29 @@ HTTP 204 No Content
 
 ---
 
-# Application Logging
-
-The Order Service currently includes application-level logging using SLF4J.
-
-Examples of logged business events include:
-
-```text
-Created order with id=...
-Updated order with id=... to status=...
-Deleted order with id=...
-```
-
-The API Gateway also currently logs completed HTTP requests with:
-
-```text
-method
-URI
-status
-correlationId
-```
-
-These logs establish the foundation for the structured logging and centralized incident-analysis pipeline.
-
-Full JSON-based structured logging is intentionally deferred to the dedicated logging stage.
-
----
-
-# Testing
-
-The platform currently contains automated tests for the User Service, Order Service, and API Gateway.
-
-## Order Service
-
-The current Order Service test suite contains:
-
-```text
-16 tests
-16 passed
-0 failures
-0 errors
-```
-
-Current coverage includes:
-
-* Application context startup
-* Order creation
-* Order retrieval
-* Order listing
-* Order update
-* Order deletion
-* Missing-order handling
-* Request validation
-* Controller HTTP status codes
-* Controller request/response behavior
-* Service-layer repository interactions
-* Successful order creation metric
-* Failed order creation metric
-
-Run the Order Service tests with:
-
-```bash
-cd order-service
-./mvnw clean test
-```
+# API Examples
 
 ## User Service
 
-The current User Service test suite contains:
-
-```text
-8 tests
-8 passed
-0 failures
-0 errors
-```
-
-Run the User Service tests with:
-
-```bash
-cd user-service
-./mvnw clean test
-```
-
-The User Service tests cover the service's application context and API behavior, including the service functionality introduced through the observability implementation.
-
-## API Gateway
-
-The current Gateway test suite contains:
-
-```text
-1 test
-1 passed
-0 failures
-0 errors
-```
-
-Run the Gateway tests with:
-
-```bash
-cd gateway
-./mvnw clean test
-```
-
-The Gateway was also manually verified through end-to-end requests to both business services, including:
-
-* User creation through Gateway
-* User retrieval through Gateway
-* User listing through Gateway
-* User deletion through Gateway
-* Order creation through Gateway
-* Order retrieval through Gateway
-* Order listing through Gateway
-* Order update through Gateway
-* Order deletion through Gateway
-* Downstream `404` propagation
-* Correlation ID preservation
-* Correlation ID forwarding
-* Basic request logging
-* Gateway Actuator metrics
-* Gateway HTTP request metrics
-
----
-
-# Dockerized End-to-End Verification
-
-The complete Docker Compose platform was manually verified.
-
-Successful verification included:
-
-```text
-Client
-  ↓
-API Gateway :8082
-  ↓
-User Service :8080
-  ↓
-PostgreSQL :5432
-```
-
-and:
-
-```text
-Client
-  ↓
-API Gateway :8082
-  ↓
-Order Service :8081
-  ↓
-PostgreSQL :5432
-```
-
-Both Gateway routes returned successful HTTP responses while running entirely inside the Docker Compose environment.
-
-PostgreSQL persistence was also verified by restarting the PostgreSQL container and successfully retrieving previously stored user data afterward.
-
-The observability pipeline was verified independently:
-
-```text
-User Service ──────┐
-Order Service ─────┤
-Gateway ───────────┼──► Prometheus ───► Grafana
-                   │         │
-Node Exporter ─────┤         ▼
-                   │    Alertmanager
-PostgreSQL Exporter┘
-```
-
-Prometheus successfully collected application, JVM, infrastructure, and PostgreSQL metrics.
-
-Grafana successfully queried Prometheus and displayed the collected data across the five dashboards.
-
-Prometheus successfully evaluated the configured alert rules.
-
-Alertmanager successfully received a real service-down alert and cleared it after recovery.
-
----
-
-# Local Development
-
-## Option 1 — Run the Complete Platform with Docker Compose
-
-From the project root:
-
-```bash
-docker compose up --build
-```
-
-This is the recommended way to run the complete local application and observability platform.
-
-Verify the containers:
-
-```bash
-docker compose ps
-```
-
-## Option 2 — Run PostgreSQL with Docker and Applications Locally
-
-Start PostgreSQL:
-
-```bash
-docker compose up -d postgres
-```
-
-Verify the container:
-
-```bash
-docker ps
-```
-
-The PostgreSQL container is exposed locally on:
-
-```text
-localhost:5432
-```
-
-## Run User Service
-
-Navigate to the User Service:
-
-```bash
-cd user-service
-```
-
-Run:
-
-```bash
-./mvnw spring-boot:run
-```
-
-The service starts on:
-
-```text
-http://localhost:8080
-```
-
-## Run Order Service
-
-Open another terminal and navigate to:
-
-```bash
-cd order-service
-```
-
-Run:
-
-```bash
-./mvnw spring-boot:run
-```
-
-The service starts on:
-
-```text
-http://localhost:8081
-```
-
-## Run API Gateway
-
-Open another terminal and navigate to:
-
-```bash
-cd gateway
-```
-
-Run:
-
-```bash
-./mvnw spring-boot:run
-```
-
-The Gateway starts on:
-
-```text
-http://localhost:8082
-```
-
-## Run Observability Components
-
-The recommended approach is to run the complete Compose stack:
-
-```bash
-docker compose up -d
-```
-
-Prometheus:
-
-```text
-http://localhost:9090
-```
-
-Grafana:
-
-```text
-http://localhost:3000
-```
-
-Alertmanager:
-
-```text
-http://localhost:9093
-```
-
-PostgreSQL Exporter:
-
-```text
-http://localhost:9187/metrics
-```
-
-Node Exporter:
-
-```text
-http://localhost:9100/metrics
-```
-
-The recommended client flow remains:
-
-```text
-Client
-  ↓
-API Gateway :8082
-  ↓
-User Service :8080
-       OR
-Order Service :8081
-```
-
-The observability flow is:
-
-```text
-Applications
-     │
-     ▼
-Micrometer
-     │
-     ▼
-/actuator/prometheus
-     │
-     ▼
-Prometheus :9090
-     │
-     ├────────────► Grafana :3000
-     │
-     └────────────► Alertmanager :9093
-```
-
----
-
-# User Service API Examples
-
-## Health Check
+### Health Check
 
 ```bash
 curl http://localhost:8080/actuator/health
 ```
 
-## Metrics
+### Metrics
 
 ```bash
 curl http://localhost:8080/actuator/metrics
 ```
 
-## Prometheus Metrics
+### Prometheus Metrics
 
 ```bash
 curl http://localhost:8080/actuator/prometheus
 ```
 
-## HTTP Request Metrics
-
-```bash
-curl http://localhost:8080/actuator/metrics/http.server.requests
-```
-
-## Create a User
+### Create a User
 
 ```bash
 curl -i -X POST http://localhost:8080/users \
@@ -2881,19 +3050,19 @@ curl -i -X POST http://localhost:8080/users \
   }'
 ```
 
-## Get a User
+### Get a User
 
 ```bash
 curl -i http://localhost:8080/users/1
 ```
 
-## Get All Users
+### Get All Users
 
 ```bash
 curl -i http://localhost:8080/users
 ```
 
-## Delete a User
+### Delete a User
 
 ```bash
 curl -i -X DELETE http://localhost:8080/users/1
@@ -2901,33 +3070,27 @@ curl -i -X DELETE http://localhost:8080/users/1
 
 ---
 
-# Order Service API Examples
+## Order Service
 
-## Health Check
+### Health Check
 
 ```bash
 curl http://localhost:8081/actuator/health
 ```
 
-## Metrics
+### Metrics
 
 ```bash
 curl http://localhost:8081/actuator/metrics
 ```
 
-## Prometheus Metrics
+### Prometheus Metrics
 
 ```bash
 curl http://localhost:8081/actuator/prometheus
 ```
 
-## HTTP Request Metrics
-
-```bash
-curl http://localhost:8081/actuator/metrics/http.server.requests
-```
-
-## Create an Order
+### Create an Order
 
 ```bash
 curl -i -X POST http://localhost:8081/orders \
@@ -2940,19 +3103,19 @@ curl -i -X POST http://localhost:8081/orders \
   }'
 ```
 
-## Get an Order
+### Get an Order
 
 ```bash
 curl -i http://localhost:8081/orders/1
 ```
 
-## Get All Orders
+### Get All Orders
 
 ```bash
 curl -i http://localhost:8081/orders
 ```
 
-## Update an Order
+### Update an Order
 
 ```bash
 curl -i -X PUT http://localhost:8081/orders/1 \
@@ -2966,7 +3129,7 @@ curl -i -X PUT http://localhost:8081/orders/1 \
   }'
 ```
 
-## Delete an Order
+### Delete an Order
 
 ```bash
 curl -i -X DELETE http://localhost:8081/orders/1
@@ -2974,35 +3137,27 @@ curl -i -X DELETE http://localhost:8081/orders/1
 
 ---
 
-# API Gateway Examples
+## API Gateway
 
-The Gateway provides the preferred client-facing API.
-
-## Gateway Health Check
+### Gateway Health Check
 
 ```bash
 curl -i http://localhost:8082/actuator/health
 ```
 
-## Gateway Metrics
+### Gateway Metrics
 
 ```bash
 curl -i http://localhost:8082/actuator/metrics
 ```
 
-## Gateway Prometheus Metrics
+### Gateway Prometheus Metrics
 
 ```bash
 curl -i http://localhost:8082/actuator/prometheus
 ```
 
-## Gateway HTTP Request Metrics
-
-```bash
-curl -i http://localhost:8082/actuator/metrics/http.server.requests
-```
-
-## Create a User Through Gateway
+### Create a User Through Gateway
 
 ```bash
 curl -i -X POST http://localhost:8082/api/users \
@@ -3014,28 +3169,14 @@ curl -i -X POST http://localhost:8082/api/users \
   }'
 ```
 
-## Get a User Through Gateway
+### Get a User Through Gateway
 
 ```bash
 curl -i http://localhost:8082/api/users/1 \
   -H "X-Correlation-ID: user-request-002"
 ```
 
-## Get All Users Through Gateway
-
-```bash
-curl -i http://localhost:8082/api/users \
-  -H "X-Correlation-ID: user-request-003"
-```
-
-## Delete a User Through Gateway
-
-```bash
-curl -i -X DELETE http://localhost:8082/api/users/1 \
-  -H "X-Correlation-ID: user-request-004"
-```
-
-## Create an Order Through Gateway
+### Create an Order Through Gateway
 
 ```bash
 curl -i -X POST http://localhost:8082/api/orders \
@@ -3049,61 +3190,76 @@ curl -i -X POST http://localhost:8082/api/orders \
   }'
 ```
 
-## Get an Order Through Gateway
+### Get an Order Through Gateway
 
 ```bash
 curl -i http://localhost:8082/api/orders/1 \
   -H "X-Correlation-ID: order-request-002"
 ```
 
-## Get All Orders Through Gateway
-
-```bash
-curl -i http://localhost:8082/api/orders \
-  -H "X-Correlation-ID: order-request-003"
-```
-
-## Update an Order Through Gateway
-
-```bash
-curl -i -X PUT http://localhost:8082/api/orders/1 \
-  -H "Content-Type: application/json" \
-  -H "X-Correlation-ID: order-request-004" \
-  -d '{
-    "userId": 1,
-    "product": "Mechanical Keyboard",
-    "quantity": 2,
-    "amount": 259.98,
-    "status": "PROCESSING"
-  }'
-```
-
-## Delete an Order Through Gateway
-
-```bash
-curl -i -X DELETE http://localhost:8082/api/orders/1 \
-  -H "X-Correlation-ID: order-request-005"
-```
-
-## Verify Correlation ID
-
-A request with an explicit correlation ID:
+### Verify Correlation ID
 
 ```bash
 curl -i http://localhost:8082/api/orders/2 \
   -H "X-Correlation-ID: test-correlation-789"
 ```
 
-returns the same correlation ID in the response:
+The response should preserve:
 
 ```text
 X-Correlation-ID: test-correlation-789
 ```
 
-The Gateway also records the request:
+---
+
+## Incident Context Builder
+
+### Health Check
+
+```bash
+curl -s http://localhost:8090/actuator/health
+```
+
+### Submit Alertmanager-Compatible Incident
+
+```bash
+curl -sS -X POST http://localhost:8090/api/v1/alerts \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "receiver": "incident-context",
+    "status": "firing",
+    "groupKey": "docker-e2e-test",
+    "truncatedAlerts": 0,
+    "alerts": [
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "APIErrorRateHigh",
+          "severity": "HIGH",
+          "service": "order-service",
+          "environment": "test"
+        },
+        "annotations": {
+          "summary": "Docker E2E verification"
+        },
+        "startsAt": "2026-09-11T10:00:00Z",
+        "endsAt": "0001-01-01T00:00:00Z",
+        "generatorURL": "http://prometheus:9090/graph",
+        "fingerprint": "docker-e2e-test"
+      }
+    ]
+  }'
+```
+
+The response contains normalized:
 
 ```text
-Request completed: method=GET uri=/api/orders/2 status=200 correlationId=test-correlation-789
+Alert Evidence
+Metrics
+Health
+HTTP Errors
+Logs
+Timeline
 ```
 
 ---
@@ -3244,64 +3400,24 @@ curl -s http://localhost:9093/api/v2/alerts
 curl -s http://localhost:9090/api/v1/alertmanagers
 ```
 
-A healthy connection reports an active Alertmanager target similar to:
+## Check Incident Context Receiver
+
+The active receiver is configured to forward alerts to:
 
 ```text
-http://alertmanager:9093/api/v2/alerts
+http://incident-context:8090/api/v1/alerts
 ```
 
-## Verify Firing Alerts
-
-Prometheus active alerts:
-
-```bash
-curl -s http://localhost:9090/api/v1/alerts
-```
-
-Alertmanager active alerts:
-
-```bash
-curl -s http://localhost:9093/api/v2/alerts
-```
-
-The Gateway failure test described in the **Alerting End-to-End Verification** section confirmed that the same `ServiceDown` alert successfully travelled from Prometheus to Alertmanager.
-
----
-
-# Grafana Verification
-
-Grafana can be accessed at:
+The complete alert pipeline is:
 
 ```text
-http://localhost:3000
-```
-
-The current dashboard folder is:
-
-```text
-Monitoring
-```
-
-Available dashboards:
-
-```text
-Platform Overview
-Application Performance
-JVM
-Database
-Service Health
-```
-
-Grafana automatically provisions the dashboards from:
-
-```text
-monitoring/grafana/dashboards/
-```
-
-and the Prometheus data source from:
-
-```text
-monitoring/grafana/provisioning/datasources/prometheus.yml
+Prometheus
+    │
+    ▼
+Alertmanager
+    │
+    ▼
+Incident Context Builder
 ```
 
 ---
@@ -3317,10 +3433,11 @@ docker compose ps
 Expected application state:
 
 ```text
-gateway          healthy
-user-service     healthy
-order-service    healthy
-postgres         healthy
+gateway             healthy
+user-service        healthy
+order-service       healthy
+incident-context    healthy
+postgres            healthy
 ```
 
 The observability services should be running:
@@ -3345,142 +3462,10 @@ and:
 curl -i http://localhost:8082/api/orders
 ```
 
-Successful responses confirm:
+The incident pipeline can be tested through:
 
-```text
-Client
-  ↓
-Docker Gateway
-  ↓
-Docker Service
-  ↓
-PostgreSQL
-```
-
-The monitoring pipeline can then be verified through:
-
-```text
-Prometheus :9090
-Grafana :3000
-Alertmanager :9093
-```
-
----
-
-# Observability Roadmap
-
-The platform will progressively evolve from application-level instrumentation into a complete monitoring and AIOps platform.
-
-The current observability pipeline is:
-
-```text
-Applications
-    │
-    ├── Metrics ──────────► Prometheus
-    │                         │
-    │                         ├────────► Grafana
-    │                         │
-    │                         └────────► Alertmanager
-    │
-    ├── Health ───────────► Prometheus
-    │
-    └── Infrastructure ──► Exporters
-                              │
-                              ▼
-                          Prometheus
-```
-
-The planned future incident-intelligence pipeline is:
-
-```text
-Applications
-    │
-    ├── Metrics ──────────► Prometheus
-    │                         │
-    │                         ├────────► Grafana
-    │                         │
-    │                         └────────► Alertmanager
-    │                                         │
-    ├── Logs ─────────────► Incident Context Builder
-    │                                         │
-    └── Health ───────────► Incident Context Builder
-                                              │
-                                              ▼
-                                     AI Incident Analyzer
-```
-
-Planned future stages include:
-
-1. Structured application logging
-2. Centralized log collection
-3. Incident context generation
-4. AI-powered incident analysis
-5. Alert correlation
-6. Anomaly detection
-7. AI log analysis
-8. Incident timeline generation
-9. Automated incident reports
-10. Failure simulation
-11. Incident recovery workflows
-12. Incident history
-13. Testing and reliability validation
-14. Security hardening
-15. CI/CD
-16. Documentation and portfolio polish
-
----
-
-# AI Incident Intelligence
-
-The AI layer will analyze operational context collected from the platform.
-
-Potential inputs include:
-
-* Prometheus metrics
-* Alertmanager alerts
-* Application logs
-* HTTP errors
-* Service health
-* Request latency
-* Error rates
-* Database health
-* Container health
-* Incident timelines
-
-The analyzer will produce information such as:
-
-```text
-Incident
-   ↓
-Correlation
-   ↓
-Probable Root Cause
-   ↓
-Supporting Evidence
-   ↓
-Recommended Remediation
-```
-
-The AI system will **not directly execute remediation actions**.
-
-Operational changes will remain under deterministic automation and explicit engineering control.
-
-This separation ensures that AI is used for:
-
-```text
-Interpretation
-Correlation
-Analysis
-Recommendation
-```
-
-while operational systems remain responsible for:
-
-```text
-Execution
-State Changes
-Remediation
-Infrastructure Modification
+```bash
+curl -sS -X POST http://localhost:8090/api/v1/alerts ...
 ```
 
 ---
@@ -3504,6 +3489,8 @@ Alertmanager Alert
        ↓
 Incident Context Builder
        ↓
+Incident Evidence
+       ↓
 AI Incident Analysis
        ↓
 Root Cause + Remediation
@@ -3513,9 +3500,9 @@ Database Recovery
 Service Recovery
 ```
 
-The Order Service has already been used for controlled database failure testing during the application observability stage.
+The Order Service has been used for controlled database failure testing.
 
-The Gateway has also been deliberately stopped to validate the complete:
+The Gateway has also been deliberately stopped to validate:
 
 ```text
 Failure
@@ -3531,9 +3518,20 @@ Service Recovery
 Alert Resolution
 ```
 
-workflow.
+The Incident Context Builder has additionally been tested against:
 
-The full automated failure-analysis and AI-remediation workflow will be implemented in later stages.
+```text
+Empty alert lists
+Missing alert labels
+Missing alert annotations
+Unknown services
+Prometheus unavailability
+Malformed structured logs
+Missing timestamps
+Invalid Alertmanager end timestamps
+```
+
+The complete AI-based failure-analysis workflow remains a future stage.
 
 ---
 
@@ -3591,7 +3589,7 @@ The full automated failure-analysis and AI-remediation workflow will be implemen
 * Correlation ID generation
 * Correlation ID preservation
 * Correlation ID propagation to downstream services
-* Basic request-completion logging
+* Request-completion logging
 * Downstream HTTP error propagation
 * Gateway health endpoint
 * Configurable User Service URL
@@ -3749,7 +3747,7 @@ The full automated failure-analysis and AI-remediation workflow will be implemen
 * Alert routing
 * Alert grouping
 * Alert lifecycle management
-* Default local receiver
+* Alert metadata
 * Severity metadata
 * Service metadata
 * Environment metadata
@@ -3767,11 +3765,80 @@ The full automated failure-analysis and AI-remediation workflow will be implemen
 * Prometheus Alertmanager connection verification
 * End-to-end alert lifecycle testing
 
+## Stage 10 — Structured Application Logging ✅
+
+* Structured JSON logging
+* Consistent log fields
+* Timestamp standardization
+* Log level
+* Service identification
+* Correlation ID propagation
+* Correlation ID in logging context
+* Request method logging
+* Request endpoint logging
+* HTTP status logging
+* Request duration logging
+* Exception-aware structured logging
+* Request-completion logging in Gateway
+* Request-completion logging in User Service
+* Request-completion logging in Order Service
+* Machine-readable application log format
+* Structured logging verification
+* Correlation ID verification
+* JSON log verification
+
+## Stage 11 — Incident Data Pipeline ✅
+
+* Dedicated Incident Context Builder service
+* Incident Context Builder Docker container
+* Incident Context Builder health check
+* Alertmanager webhook endpoint
+* Alertmanager → Incident Context Builder integration
+* Alertmanager payload models
+* Alert normalization
+* `AlertEvidence`
+* `IncidentContext`
+* `LogEvidence`
+* `HealthEvidence`
+* `HttpErrorEvidence`
+* `TimelineEvent`
+* Prometheus HTTP client
+* Prometheus request-rate evidence
+* Prometheus HTTP 5xx evidence
+* Prometheus HTTP error evidence
+* Service health evidence
+* User Service health integration
+* Order Service health integration
+* Structured log parser
+* Structured log evidence model
+* Deterministic timeline generation
+* Alert firing timeline events
+* Alert resolved timeline events
+* HTTP error timeline events
+* Log timeline events
+* Chronological event ordering
+* Invalid timestamp handling
+* Alertmanager placeholder timestamp handling
+* Empty-alert resilience
+* Missing-label resilience
+* Missing-annotation resilience
+* Unknown-service resilience
+* Prometheus-unavailable resilience
+* Best-effort evidence collection
+* MockWebServer-based HTTP client tests
+* Incident Context Builder integration tests
+* Docker E2E verification
+* 22/22 Incident Context Builder tests passing
+* Alertmanager → Incident Context Builder verification
+* Incident Context Builder → Prometheus verification
+* Incident Context Builder → Order Service verification
+* Incident timeline verification
+
 ---
 
 # Current Architecture
 
-The complete local application and observability platform now consists of:
+The complete local application, monitoring, and incident-data platform now consists of:
 
 ```text
                               Client
@@ -3794,44 +3861,50 @@ The complete local application and observability platform now consists of:
                        Persistent Storage
 
 
-             ┌───────────────────────────────────────┐
-             │           Observability Layer         │
-             │                                       │
-             │  ┌─────────────────────────────────┐  │
-             │  │          Prometheus             │  │
-             │  │             :9090               │  │
-             │  └──────────────┬──────────────────┘  │
-             │                 │                     │
-             │        ┌────────┴────────┐            │
-             │        │                 │            │
-             │        ▼                 ▼            │
-             │  ┌─────────────┐  ┌──────────────┐   │
-             │  │   Grafana   │  │ Alertmanager │   │
-             │  │    :3000    │  │    :9093     │   │
-             │  └─────────────┘  └──────────────┘   │
-             │                                       │
-             │  Node Exporter :9100                 │
-             │  PostgreSQL Exporter :9187           │
-             └───────────────────────────────────────┘
-```
-
-The application components expose operational metrics through:
-
-```text
-Spring Boot Actuator
-        │
-        ▼
-     Micrometer
-        │
-        ▼
-/actuator/prometheus
-        │
-        ▼
-    Prometheus
-       / \
-      /   \
-     ▼     ▼
-Grafana  Alertmanager
+                         Observability Layer
+                                │
+             ┌──────────────────┴──────────────────┐
+             │                                     │
+             ▼                                     ▼
+        Prometheus :9090                       Exporters
+             │                               ┌───────────────┐
+             │                               │ Node Exporter │
+             │                               │ PostgreSQL    │
+             │                               │ Exporter     │
+             │                               └───────────────┘
+             │
+        ┌────┴────┐
+        │         │
+        ▼         ▼
+    Grafana   Alertmanager
+     :3000       :9093
+                    │
+                    │ webhook
+                    ▼
+             Incident Context
+                Builder
+                 :8090
+                    │
+          ┌─────────┼──────────┐
+          │         │          │
+          ▼         ▼          ▼
+      Prometheus Health     HTTP Errors
+          │         │          │
+          └─────────┼──────────┘
+                    │
+                    ▼
+             Structured Logs
+                Parser
+                    │
+                    ▼
+             Timeline Builder
+                    │
+                    ▼
+            Incident Context
+                    │
+                    ▼
+           AI Incident Analyzer
+                (planned)
 ```
 
 The current Prometheus monitoring layer collects:
@@ -3868,7 +3941,18 @@ The current alerting layer provides:
 9 total alert rules
 ```
 
-The complete application and monitoring environment can now be started reproducibly through:
+The current incident-data layer provides:
+
+```text
+Alert Evidence
+Metric Evidence
+Health Evidence
+HTTP Error Evidence
+Structured Log Parsing
+Deterministic Timeline
+```
+
+The complete application, monitoring, and incident-data environment can be started reproducibly through:
 
 ```bash
 docker compose up --build
@@ -3888,46 +3972,88 @@ Grafana dashboards and provisioning configuration are maintained as source-contr
 
 ---
 
-# Next Stage
+# Roadmap
 
-**Stage 10 — Structured Logging & Centralized Logs** 🚧
-
-The next stage will extend the existing request logging and application logging foundation into a structured logging pipeline.
-
-Planned responsibilities include:
-
-* JSON structured logging
-* Consistent log fields
-* Correlation ID propagation into logs
-* Service identification
-* Log levels
-* Timestamp standardization
-* Centralized log collection
-* Log aggregation
-* Searchable application logs
-* Correlation between logs and Prometheus alerts
-* Incident-context preparation
-* Log-based operational troubleshooting
-
-The resulting pipeline will begin to connect metrics, alerts, and logs:
+The current platform has progressed through:
 
 ```text
-Applications
-     │
-     ├── Metrics ────────► Prometheus
-     │                       │
-     │                       └──► Alertmanager
-     │
-     └── Logs ───────────► Centralized Logging
-                               │
-                               ▼
-                         Incident Context
-                               │
-                               ▼
-                       AI Incident Analyzer
+Application Services
+        ↓
+API Gateway
+        ↓
+Docker Platform
+        ↓
+Application Metrics
+        ↓
+Prometheus
+        ↓
+Grafana
+        ↓
+Alertmanager
+        ↓
+Structured Logging
+        ↓
+Incident Context Builder
+        ↓
+Future Centralized Logs
+        ↓
+Future AI Incident Analyzer
 ```
 
-Later stages will extend this into:
+The next stages will extend the deterministic incident-data foundation into centralized logging, incident intelligence, failure analysis, and operational reporting.
+
+Planned future capabilities include:
+
+1. Centralized log collection
+2. Log aggregation and search
+3. Correlation between logs and alerts
+4. AI-powered incident analysis
+5. Alert correlation
+6. Anomaly detection
+7. AI-assisted log analysis
+8. Automated incident reports
+9. Incident history
+10. Failure simulation workflows
+11. Incident recovery workflows
+12. Security hardening
+13. CI/CD
+14. Production deployment
+15. Documentation and portfolio polish
+
+---
+
+# AI Incident Intelligence
+
+The AI layer will analyze the deterministic incident context generated by the Incident Context Builder.
+
+Potential inputs include:
+
+* Prometheus metrics
+* Alertmanager alerts
+* Application logs
+* HTTP errors
+* Service health
+* Request latency
+* Error rates
+* Database health
+* Container health
+* Incident timelines
+
+The analyzer will produce information such as:
+
+```text
+Incident
+   ↓
+Correlation
+   ↓
+Probable Root Cause
+   ↓
+Supporting Evidence
+   ↓
+Recommended Remediation
+```
+
+The intended architecture is:
 
 ```text
 Alertmanager
@@ -3936,9 +4062,11 @@ Alertmanager
 Incident Context Builder
       │
       ├── Prometheus Metrics
-      ├── Application Logs
-      ├── Service Health
-      └── Alert Metadata
+      ├── Alert Metadata
+      ├── Application Health
+      ├── HTTP Errors
+      ├── Structured Logs
+      └── Incident Timeline
               │
               ▼
       AI Incident Analyzer
@@ -3950,7 +4078,215 @@ Incident Context Builder
       Remediation Recommendation
 ```
 
-The long-term goal is to evolve the project into a portfolio-grade **AIOps and incident intelligence platform** capable of combining metrics, logs, alerts, service health, and failure context into actionable operational insights.
+The AI system will **not directly execute remediation actions**.
+
+Operational changes will remain under deterministic automation and explicit engineering control.
+
+This separation ensures that AI is used for:
+
+```text
+Interpretation
+Correlation
+Analysis
+Recommendation
+```
+
+while operational systems remain responsible for:
+
+```text
+Execution
+State Changes
+Remediation
+Infrastructure Modification
+```
+
+---
+
+# Failure Engineering Roadmap
+
+The long-term failure-analysis workflow is:
+
+```text
+Failure Injection
+       ↓
+Application Impact
+       ↓
+Metric Changes
+       ↓
+Prometheus Detection
+       ↓
+Alertmanager
+       ↓
+Incident Context Builder
+       ↓
+Evidence Correlation
+       ↓
+AI Incident Analyzer
+       ↓
+Root Cause Analysis
+       ↓
+Remediation Recommendation
+       ↓
+Deterministic Automation
+       ↓
+Recovery
+       ↓
+Alert Resolution
+       ↓
+Incident Report
+```
+
+The current platform has completed the pipeline through:
+
+```text
+Failure
+  ↓
+Metrics
+  ↓
+Alert
+  ↓
+Alertmanager
+  ↓
+Incident Context
+  ↓
+Evidence
+  ↓
+Timeline
+```
+
+AI analysis and deterministic remediation remain future stages.
+
+---
+
+# Local Development
+
+## Option 1 — Run the Complete Platform with Docker Compose
+
+From the project root:
+
+```bash
+docker compose up --build
+```
+
+Verify the containers:
+
+```bash
+docker compose ps
+```
+
+## Option 2 — Run PostgreSQL with Docker and Applications Locally
+
+Start PostgreSQL:
+
+```bash
+docker compose up -d postgres
+```
+
+Run User Service:
+
+```bash
+cd user-service
+./mvnw spring-boot:run
+```
+
+Run Order Service:
+
+```bash
+cd order-service
+./mvnw spring-boot:run
+```
+
+Run API Gateway:
+
+```bash
+cd gateway
+./mvnw spring-boot:run
+```
+
+Run Incident Context Builder:
+
+```bash
+cd incident-context
+./mvnw spring-boot:run
+```
+
+The Incident Context Builder starts on:
+
+```text
+http://localhost:8090
+```
+
+The recommended approach for the complete environment remains Docker Compose:
+
+```bash
+docker compose up -d
+```
+
+---
+
+# Service Endpoints
+
+| Component                | Port | Endpoint                        |
+| ------------------------ | ---: | ------------------------------- |
+| API Gateway              | 8082 | `http://localhost:8082`         |
+| User Service             | 8080 | `http://localhost:8080`         |
+| Order Service            | 8081 | `http://localhost:8081`         |
+| Incident Context Builder | 8090 | `http://localhost:8090`         |
+| Prometheus               | 9090 | `http://localhost:9090`         |
+| Alertmanager             | 9093 | `http://localhost:9093`         |
+| Grafana                  | 3000 | `http://localhost:3000`         |
+| Node Exporter            | 9100 | `http://localhost:9100/metrics` |
+| PostgreSQL Exporter      | 9187 | `http://localhost:9187/metrics` |
+| PostgreSQL               | 5432 | `localhost:5432`                |
+
+---
+
+# Portfolio Value
+
+This project demonstrates practical experience across multiple areas of modern backend and DevOps engineering:
+
+```text
+Java
+Spring Boot
+Microservices
+REST APIs
+PostgreSQL
+JPA / Hibernate
+Flyway
+Docker
+Docker Compose
+Linux Containers
+Non-Root Containers
+API Gateway
+Distributed Request Context
+Structured Logging
+Micrometer
+Prometheus
+Grafana
+Alertmanager
+Infrastructure Monitoring
+Database Monitoring
+Incident Data Pipelines
+Failure Engineering
+Observability
+AIOps Foundations
+```
+
+The project intentionally separates:
+
+```text
+Application Development
+        +
+Infrastructure
+        +
+Observability
+        +
+Incident Intelligence
+```
+
+rather than treating monitoring as an isolated dashboarding exercise.
+
+The resulting architecture demonstrates how operational data can flow from distributed applications into metrics, alerts, structured logs, deterministic incident context, and eventually AI-assisted incident analysis.
 
 ---
 

@@ -87,6 +87,21 @@ services:
     networks:
       - monitoring-network
 
+  incident-context:
+    build:
+      context: ./incident-context
+    container_name: monitoring-incident-context
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monitoring-network
+
   prometheus:
     image: prom/prometheus:v3.5.0
     container_name: monitoring-prometheus
@@ -125,6 +140,8 @@ services:
     depends_on:
       prometheus:
         condition: service_started
+      incident-context:
+        condition: service_healthy
     networks:
       - monitoring-network
 

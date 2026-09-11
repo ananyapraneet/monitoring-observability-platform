@@ -10,3 +10,10 @@ management:
     web:
       exposure:
         include: health,info
+
+prometheus:
+  base-url: http://prometheus:9090
+
+services:
+  user-service-url: http://user-service:8080
+  order-service-url: http://order-service:8081

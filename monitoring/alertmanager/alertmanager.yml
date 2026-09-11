@@ -2,7 +2,7 @@ global:
   resolve_timeout: 5m
 
 route:
-  receiver: "default"
+  receiver: "incident-context"
 
   group_by:
     - alertname
@@ -15,4 +15,6 @@ route:
   repeat_interval: 4h
 
 receivers:
-  - name: "default"
+  - name: "incident-context"
+    webhook_configs:
+      - url: "http://incident-context:8090/api/v1/alerts"

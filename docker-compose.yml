@@ -102,6 +102,24 @@ services:
     networks:
       - monitoring-network
 
+  ai-incident-analyzer:
+    build:
+      context: ./ai-incident-analyzer
+    container_name: monitoring-ai-incident-analyzer
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    depends_on:
+      incident-context:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monitoring-network
+
   prometheus:
     image: prom/prometheus:v3.5.0
     container_name: monitoring-prometheus

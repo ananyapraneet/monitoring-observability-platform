@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: ai-incident-analyzer
+
+server:
+  port: 8091
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+incident-context:
+  base-url: http://incident-context:8090

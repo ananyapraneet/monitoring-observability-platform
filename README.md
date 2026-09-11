@@ -2,13 +2,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Production-style microservice monitoring and observability platform with Spring Boot, PostgreSQL, Docker, Micrometer, Prometheus, Grafana, Alertmanager, structured logging, deterministic incident context generation, and a foundation for AI-powered incident intelligence.
+Production-style microservice monitoring and observability platform with Spring Boot, PostgreSQL, Docker, Micrometer, Prometheus, Grafana, Alertmanager, structured logging, deterministic incident context generation, and evidence-backed AI-powered incident analysis.
 
 ## Overview
 
 This project demonstrates a production-oriented monitoring and observability platform designed around a distributed microservice application.
 
-The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized Prometheus monitoring, Grafana dashboards, Alertmanager-based incident detection and routing, structured application logging, deterministic incident-context generation, and future AI-assisted AIOps capabilities.
+The platform progressively introduces application services, database persistence, API gateway routing, containerization, health monitoring, application metrics, centralized Prometheus monitoring, Grafana dashboards, Alertmanager-based incident detection and routing, structured application logging, deterministic incident-context generation, and AI-assisted incident analysis.
 
 The system is designed around a clear separation of responsibilities:
 
@@ -20,7 +20,7 @@ The system is designed around a clear separation of responsibilities:
 * **Grafana** provides centralized operational dashboards for application, JVM, database, and service health monitoring.
 * **Alertmanager** receives firing alerts from Prometheus, groups them, and routes them to the incident-context pipeline.
 * **Incident Context Builder** collects and normalizes alert, metric, health, HTTP error, log, and timeline evidence into deterministic incident context.
-* **AI components** are planned to analyze the generated incident context and provide recommendations.
+* **AI Incident Analyzer** consumes the generated incident context and provides deterministic, evidence-backed analysis and recommendations.
 * **Deterministic automation** remains responsible for executing operational changes.
 
 The AI layer is therefore designed as a **read-only decision-support system**, rather than an autonomous system that directly modifies infrastructure or application state.
@@ -92,7 +92,7 @@ The current application and observability architecture is:
                                                           ▼
                                                ┌──────────────────────┐
                                                │ AI Incident Analyzer  │
-                                               │       Planned         │
+                                               │       :8091           │
                                                └──────────────────────┘
 ```
 
@@ -191,7 +191,16 @@ The complete application and observability stack can be started locally through 
 * Structured log parsing
 * Deterministic incident timelines
 * Best-effort evidence collection
-* AI-powered incident analysis — planned
+* AI Incident Analyzer
+* Deterministic rule-based incident reasoning
+* Evidence correlation
+* Confidence scoring
+* Evidence-backed probable root-cause analysis
+* Recommended remediation
+* `POST /api/v1/analyze`
+* Normalized Incident Context as the analyzer's sole input
+* No direct raw Prometheus or Docker access from the AI service
+* Future LLM integration behind the `IncidentAnalyzer` interface
 
 ---
 
@@ -707,6 +716,7 @@ alertmanager
 node-exporter
 postgres-exporter
 grafana
+ai-incident-analyzer
 ```
 
 All services communicate through the dedicated Docker bridge network:
@@ -1846,7 +1856,7 @@ The configuration passed validation successfully.
 
 # Incident Data Pipeline
 
-The Incident Data Pipeline is the foundation for the platform's future AI incident-intelligence layer.
+The Incident Data Pipeline is the foundation for the platform's implemented AI incident-analysis layer and future advanced incident intelligence.
 
 Its responsibility is to collect operational evidence **before** that evidence is passed to an AI analyzer.
 
@@ -1881,7 +1891,7 @@ The current architecture is:
                               │
                               ▼
                     AI Incident Analyzer
-                         (planned)
+                         :8091
 ```
 
 The Incident Context Builder is intentionally a separate service from the AI analyzer.
@@ -2226,7 +2236,7 @@ HttpErrorEvidence
 TimelineEvent
 ```
 
-The structure provides a stable contract for future AI incident analysis.
+The structure provides a stable contract for the implemented rule-based analyzer and future LLM-based incident analysis.
 
 ---
 
@@ -3468,6 +3478,13 @@ The incident pipeline can be tested through:
 curl -sS -X POST http://localhost:8090/api/v1/alerts ...
 ```
 
+The AI Incident Analyzer can be verified through:
+
+```bash
+curl -sS http://localhost:8091/actuator/health
+curl -sS -X POST http://localhost:8091/api/v1/analyze
+```
+
 ---
 
 # Failure Engineering
@@ -3531,7 +3548,7 @@ Missing timestamps
 Invalid Alertmanager end timestamps
 ```
 
-The complete AI-based failure-analysis workflow remains a future stage.
+The deterministic AI incident-analysis stage is now implemented. Automated remediation and deeper AI/LLM capabilities remain future stages.
 
 ---
 
@@ -3836,6 +3853,49 @@ The complete AI-based failure-analysis workflow remains a future stage.
 
 ---
 
+## Stage 12 — AI Incident Analyzer ✅
+
+* Dedicated AI Incident Analyzer service
+* AI Incident Analyzer Docker container
+* AI Incident Analyzer health check
+* Port `8091`
+* AI incident-analysis domain models
+* `AnalysisSeverity`
+* `Evidence`
+* `Correlation`
+* `IncidentAnalysis`
+* `IncidentContextClient`
+* Decoupled client-side Incident Context models
+* `RestIncidentContextClient`
+* `GET /api/v1/context/latest` integration
+* `POST /api/v1/analyze`
+* Deterministic `RuleBasedIncidentAnalyzer`
+* `IncidentAnalyzer` abstraction for future implementations
+* Correlation Engine
+* Correlation precedence rules
+* Confidence Scorer
+* Evidence-backed analysis
+* Server-side HTTP error reasoning
+* Client-side HTTP error reasoning
+* Service-health reasoning
+* Insufficient-evidence handling
+* Unknown-service handling
+* Null-context handling
+* Null and malformed evidence handling
+* Cautious root-cause conclusions
+* No invented database-specific diagnoses without supporting evidence
+* Optional/empty log handling
+* Read-only decision-support design
+* No direct raw Prometheus access from the AI service
+* No direct Docker access from the AI service
+* Future LLM integration boundary
+* Controller-level analysis flow
+* Unit and integration tests
+* 26/26 AI Incident Analyzer tests passing
+* Docker E2E verification
+* Incident Context Builder → AI Incident Analyzer verification
+
+
 # Current Architecture
 
 The complete local application, monitoring, and incident-data platform now consists of:
@@ -3904,7 +3964,7 @@ The complete local application, monitoring, and incident-data platform now consi
                     │
                     ▼
            AI Incident Analyzer
-                (planned)
+                :8091
 ```
 
 The current Prometheus monitoring layer collects:
@@ -3952,6 +4012,18 @@ Structured Log Parsing
 Deterministic Timeline
 ```
 
+The current AI incident-analysis layer provides:
+
+```text
+Normalized IncidentContext consumption
+Deterministic rule-based reasoning
+Signal correlation
+Confidence scoring
+Evidence-backed root-cause analysis
+Recommended remediation
+Structured incident analysis
+```
+
 The complete application, monitoring, and incident-data environment can be started reproducibly through:
 
 ```bash
@@ -3995,19 +4067,21 @@ Structured Logging
         ↓
 Incident Context Builder
         ↓
+AI Incident Analyzer
+        ↓
 Future Centralized Logs
         ↓
-Future AI Incident Analyzer
+Future Advanced Incident Intelligence / Automation
 ```
 
-The next stages will extend the deterministic incident-data foundation into centralized logging, incident intelligence, failure analysis, and operational reporting.
+The next stages will extend the deterministic incident-data foundation into centralized logging, deeper incident intelligence, failure analysis, and operational reporting.
 
 Planned future capabilities include:
 
 1. Centralized log collection
 2. Log aggregation and search
 3. Correlation between logs and alerts
-4. AI-powered incident analysis
+4. Advanced AI-powered incident analysis and LLM integration
 5. Alert correlation
 6. Anomaly detection
 7. AI-assisted log analysis
@@ -4015,45 +4089,53 @@ Planned future capabilities include:
 9. Incident history
 10. Failure simulation workflows
 11. Incident recovery workflows
-12. Security hardening
-13. CI/CD
-14. Production deployment
-15. Documentation and portfolio polish
+12. Deterministic automated remediation
+13. Security hardening
+14. CI/CD
+15. Production deployment
+16. Documentation and portfolio polish
 
 ---
 
 # AI Incident Intelligence
 
-The AI layer will analyze the deterministic incident context generated by the Incident Context Builder.
+The platform now includes a dedicated **AI Incident Analyzer** that consumes the normalized incident context produced by the Incident Context Builder.
 
-Potential inputs include:
+The analyzer is intentionally separated from evidence collection. It does not connect directly to Prometheus, Docker, application log files, or the underlying application services to gather raw operational data.
 
-* Prometheus metrics
-* Alertmanager alerts
-* Application logs
-* HTTP errors
-* Service health
-* Request latency
-* Error rates
-* Database health
-* Container health
-* Incident timelines
-
-The analyzer will produce information such as:
+Its input is the normalized:
 
 ```text
-Incident
-   ↓
-Correlation
-   ↓
-Probable Root Cause
-   ↓
-Supporting Evidence
-   ↓
-Recommended Remediation
+IncidentContext
 ```
 
-The intended architecture is:
+produced by the Incident Context Builder.
+
+The current implementation is deterministic and rule-based. It is designed to produce cautious, evidence-backed conclusions rather than inventing root causes when the available evidence is insufficient.
+
+## AI Incident Analyzer
+
+The AI Incident Analyzer runs on:
+
+```text
+http://localhost:8091
+```
+
+Health endpoint:
+
+```text
+GET /actuator/health
+```
+
+Analysis endpoint:
+
+```text
+POST /api/v1/analyze
+```
+
+The analysis endpoint retrieves the latest normalized incident context through the Incident Context Client and passes it to the configured `IncidentAnalyzer` implementation.
+
+The current architecture is:
 
 ```text
 Alertmanager
@@ -4069,38 +4151,397 @@ Incident Context Builder
       └── Incident Timeline
               │
               ▼
-      AI Incident Analyzer
+       Normalized IncidentContext
               │
               ▼
-      Root Cause Analysis
+      AI Incident Analyzer :8091
+              │
+              ├── Correlation Engine
+              ├── Confidence Scorer
+              └── Rule-Based Incident Analyzer
               │
               ▼
-      Remediation Recommendation
+        Incident Analysis
+              │
+              ├── Incident
+              ├── Severity
+              ├── Summary
+              ├── Correlation
+              ├── Evidence
+              ├── Probable Root Cause
+              ├── Recommended Remediation
+              └── Confidence
 ```
 
-The AI system will **not directly execute remediation actions**.
+## AI Domain Model
 
-Operational changes will remain under deterministic automation and explicit engineering control.
+The analyzer returns:
 
-This separation ensures that AI is used for:
+```text
+IncidentAnalysis
+```
+
+with:
+
+```text
+incident
+severity
+service
+summary
+correlation
+evidence
+probableRootCause
+recommendedRemediation
+confidence
+```
+
+Supporting domain types include:
+
+```text
+AnalysisSeverity
+Evidence
+Correlation
+IncidentAnalysis
+```
+
+The severity model supports:
+
+```text
+LOW
+MEDIUM
+HIGH
+CRITICAL
+UNKNOWN
+```
+
+The evidence model records:
+
+```text
+type
+source
+description
+```
+
+The correlation model records:
+
+```text
+description
+relatedSignals
+```
+
+This keeps the analysis response structured and machine-readable.
+
+## Incident Context Client
+
+The AI service consumes incident context through:
+
+```text
+IncidentContextClient
+```
+
+The current implementation is:
+
+```text
+RestIncidentContextClient
+```
+
+which retrieves:
+
+```text
+GET /api/v1/context/latest
+```
+
+from the Incident Context Builder.
+
+The AI service maintains its own client-side incident-context models rather than importing Java classes from the Incident Context Builder.
+
+This preserves a service boundary and allows the two services to evolve independently.
+
+If the Incident Context Builder has no current incident context and returns:
+
+```text
+204 No Content
+```
+
+the client safely returns no context and the analyzer produces a cautious analysis rather than failing or inventing evidence.
+
+## Deterministic Rule-Based Reasoning
+
+The current implementation uses:
+
+```text
+IncidentAnalyzer
+        │
+        ▼
+RuleBasedIncidentAnalyzer
+```
+
+The rule-based analyzer currently reasons about:
+
+### Server-Side HTTP Errors
+
+If HTTP 5xx evidence is present, the analyzer identifies:
+
+```text
+API degradation
+```
+
+or another server-side failure pattern supported by the available evidence.
+
+### Client-Side HTTP Errors
+
+If only HTTP 4xx evidence is present, the analyzer identifies:
+
+```text
+request or resource access failures
+```
+
+rather than incorrectly classifying them as server-side failures.
+
+### Degraded Service Health
+
+If service health is reported as degraded, the analyzer includes the health signal in the incident analysis and recommends inspecting the health endpoint and failing components.
+
+### Insufficient Evidence
+
+When meaningful evidence is unavailable, the analyzer returns a cautious root-cause statement and low confidence rather than fabricating a diagnosis.
+
+### Unknown Services
+
+Unknown services are handled safely.
+
+The analyzer does not infer a service-specific root cause when the available incident context does not provide enough evidence.
+
+## Correlation Engine
+
+The:
+
+```text
+CorrelationEngine
+```
+
+correlates independent incident signals.
+
+Current precedence includes:
+
+```text
+Server-side HTTP errors + degraded health
+        ↓
+Server-side HTTP errors + metrics
+        ↓
+Server-side HTTP errors
+        ↓
+Degraded health + metrics
+        ↓
+Degraded health
+        ↓
+Client-side HTTP errors
+        ↓
+Metrics or logs without a specific failure pattern
+        ↓
+No meaningful signals
+```
+
+The engine records the signals involved in the correlation, such as:
+
+```text
+alert
+metrics
+logs
+http_errors
+degraded_health
+```
+
+This creates an explicit relationship between the observed evidence and the generated analysis.
+
+## Confidence Scoring
+
+The:
+
+```text
+ConfidenceScorer
+```
+
+assigns deterministic confidence values based on the strength of available signals.
+
+The current scoring behavior is:
+
+```text
+Server errors + degraded health → 0.75
+Server errors OR degraded health → 0.65
+Metrics or logs only → 0.40
+No meaningful evidence → 0.10
+```
+
+These values are deliberately deterministic and transparent.
+
+They are not presented as statistical probabilities.
+
+They provide a consistent indication of how strongly the current rule-based analyzer can support its conclusion.
+
+## Evidence-Backed Analysis
+
+The analyzer is explicitly designed to avoid unsupported root-cause claims.
+
+For example, the presence of a metric containing database-related text is not by itself treated as proof of database failure.
+
+A database-specific root cause should only be stated when the incident context contains actual evidence supporting that conclusion.
+
+The current incident-context contract does not yet provide a dedicated database-root-cause evidence contract to the analyzer.
+
+Therefore, the analyzer remains cautious when the available evidence is insufficient.
+
+This is intentional and prevents the system from producing plausible-sounding but unsupported incident diagnoses.
+
+## Logs Are Optional
+
+The current Incident Context Builder can produce an empty:
+
+```text
+logs
+```
+
+collection because centralized log ingestion has not yet been implemented.
+
+The AI Incident Analyzer is designed to operate correctly without logs.
+
+It can still reason from:
+
+```text
+alerts
+metrics
+health
+HTTP errors
+timeline
+```
+
+when those signals are available.
+
+## No Autonomous Remediation
+
+The AI Incident Analyzer is a **read-only decision-support component**.
+
+It does not:
+
+```text
+restart containers
+modify infrastructure
+change application configuration
+execute shell commands
+modify databases
+scale services
+```
+
+Its responsibility is limited to:
 
 ```text
 Interpretation
 Correlation
-Analysis
+Evidence-backed Analysis
 Recommendation
+Confidence
 ```
 
-while operational systems remain responsible for:
+Operational changes remain under explicit engineering control and deterministic automation.
+
+## Future LLM Integration
+
+The analyzer architecture deliberately uses:
 
 ```text
-Execution
-State Changes
-Remediation
-Infrastructure Modification
+IncidentAnalyzer
 ```
 
----
+as an abstraction.
+
+The current implementation is:
+
+```text
+RuleBasedIncidentAnalyzer
+```
+
+A future implementation can provide:
+
+```text
+LlmIncidentAnalyzer
+```
+
+without changing the controller or incident-context contract.
+
+The future LLM layer can therefore consume the same normalized `IncidentContext` while remaining behind the same analyzer interface.
+
+No external LLM integration is currently claimed as implemented.
+
+## AI Analyzer Testing
+
+The final AI Incident Analyzer test suite contains:
+
+```text
+26 tests
+26 passed
+0 failures
+0 errors
+```
+
+Coverage includes:
+
+* Incident analysis domain models
+* JSON serialization
+* Incident Context Client behavior
+* HTTP 200 context retrieval
+* HTTP 204 no-context behavior
+* Server-side failure reasoning
+* Degraded health reasoning
+* 4xx-only reasoning
+* Insufficient-evidence handling
+* Database-like signals without database evidence
+* Unknown-service handling
+* Null and malformed evidence handling
+* Null incident context handling
+* Correlation precedence
+* Correlation signal tracking
+* Confidence scoring
+* Null collection handling
+* Controller analysis flow
+
+## AI Analyzer End-to-End Verification
+
+The complete Docker path was verified through:
+
+```text
+Incident Context Builder :8090
+            │
+            ▼
+AI Incident Analyzer :8091
+```
+
+The normalized context was first retrieved from:
+
+```text
+GET http://localhost:8090/api/v1/context/latest
+```
+
+The analyzer was then invoked through:
+
+```bash
+curl -sS -X POST http://localhost:8091/api/v1/analyze
+```
+
+The endpoint successfully returned a structured `IncidentAnalysis` response containing:
+
+```text
+Incident
+Severity
+Service
+Summary
+Correlation
+Evidence
+Probable Root Cause
+Recommended Remediation
+Confidence
+```
+
+The verified flow demonstrates that the AI service consumes the normalized incident context rather than directly accessing the underlying monitoring systems.
 
 # Failure Engineering Roadmap
 
@@ -4154,7 +4595,7 @@ Evidence
 Timeline
 ```
 
-AI analysis and deterministic remediation remain future stages.
+AI incident analysis is now implemented. Deterministic automated remediation, deeper AI/LLM capabilities, and automated recovery workflows remain future stages.
 
 ---
 
@@ -4216,6 +4657,19 @@ The Incident Context Builder starts on:
 http://localhost:8090
 ```
 
+Run AI Incident Analyzer:
+
+```bash
+cd ai-incident-analyzer
+mvn spring-boot:run
+```
+
+The AI Incident Analyzer starts on:
+
+```text
+http://localhost:8091
+```
+
 The recommended approach for the complete environment remains Docker Compose:
 
 ```bash
@@ -4232,6 +4686,7 @@ docker compose up -d
 | User Service             | 8080 | `http://localhost:8080`         |
 | Order Service            | 8081 | `http://localhost:8081`         |
 | Incident Context Builder | 8090 | `http://localhost:8090`         |
+| AI Incident Analyzer      | 8091 | `http://localhost:8091`         |
 | Prometheus               | 9090 | `http://localhost:9090`         |
 | Alertmanager             | 9093 | `http://localhost:9093`         |
 | Grafana                  | 3000 | `http://localhost:3000`         |
@@ -4270,6 +4725,10 @@ Incident Data Pipelines
 Failure Engineering
 Observability
 AIOps Foundations
+AI Incident Analysis
+Evidence-Based Root Cause Analysis
+Incident Correlation
+Confidence Scoring
 ```
 
 The project intentionally separates:
@@ -4286,7 +4745,7 @@ Incident Intelligence
 
 rather than treating monitoring as an isolated dashboarding exercise.
 
-The resulting architecture demonstrates how operational data can flow from distributed applications into metrics, alerts, structured logs, deterministic incident context, and eventually AI-assisted incident analysis.
+The resulting architecture demonstrates how operational data can flow from distributed applications into metrics, alerts, structured logs, deterministic incident context, and evidence-backed AI incident analysis.
 
 ---
 

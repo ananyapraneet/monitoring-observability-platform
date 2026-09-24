@@ -19,10 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IncidentContextModelTests {
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper =
+            new ObjectMapper().findAndRegisterModules();
 
     @Test
     void shouldSerializeIncidentContext() throws Exception {
+
         IncidentContext context = new IncidentContext(
                 "APIErrorRateHigh",
                 "HIGH",
@@ -41,7 +43,9 @@ class IncidentContextModelTests {
                                         "alertname", "HighHttp5xxErrorRate",
                                         "service", "order-service",
                                         "severity", "warning"
-                                )
+                                ),
+                                null,
+                                null
                         )
                 ),
                 Map.of(

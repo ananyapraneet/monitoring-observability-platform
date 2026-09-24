@@ -11,6 +11,7 @@ import java.util.Map;
 public class AlertmanagerAlertNormalizer {
 
     public AlertEvidence normalize(AlertmanagerAlert alert) {
+
         Map<String, String> labels =
                 alert.labels() == null ? Collections.emptyMap() : alert.labels();
 
@@ -26,7 +27,10 @@ public class AlertmanagerAlertNormalizer {
                 annotations.get("summary"),
                 annotations.get("description"),
                 annotations.get("runbook"),
-                labels
+                labels,
+                alert.startsAt(),
+                alert.endsAt()
         );
     }
+
 }

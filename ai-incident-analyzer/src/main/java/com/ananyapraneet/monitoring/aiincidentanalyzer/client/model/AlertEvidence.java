@@ -1,8 +1,10 @@
 package com.ananyapraneet.monitoring.aiincidentanalyzer.client.model;
 
+import java.time.Instant;
 import java.util.Map;
 
 public record AlertEvidence(
+
         String alertName,
         String status,
         String severity,
@@ -11,5 +13,8 @@ public record AlertEvidence(
         String summary,
         String description,
         String runbook,
-        Map<String, String> labels
+        Map<String, String> labels,
+        Instant startsAt,
+        Instant endsAt
+
 ) {}

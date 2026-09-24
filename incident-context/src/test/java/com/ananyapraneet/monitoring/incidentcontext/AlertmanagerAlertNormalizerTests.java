@@ -51,5 +51,14 @@ class AlertmanagerAlertNormalizerTests {
                 evidence.runbook()
         );
         assertEquals("local", evidence.labels().get("environment"));
+        assertEquals(
+        	Instant.parse("2026-09-10T15:00:00Z"),
+        	evidence.startsAt()
+	);
+
+	assertEquals(
+        	Instant.parse("0001-01-01T00:00:00Z"),
+        	evidence.endsAt()
+	);
     }
 }

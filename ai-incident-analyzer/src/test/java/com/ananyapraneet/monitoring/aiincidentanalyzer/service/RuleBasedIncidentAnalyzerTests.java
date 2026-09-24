@@ -8,6 +8,15 @@ import com.ananyapraneet.monitoring.aiincidentanalyzer.domain.AnalysisSeverity;
 import com.ananyapraneet.monitoring.aiincidentanalyzer.domain.IncidentAnalysis;
 import org.junit.jupiter.api.Test;
 
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.CorrelatedIncidentMapper;
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.IncidentContextCorrelationAdapter;
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.LogCorrelator;
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.MetricCorrelator;
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.MultiSignalCorrelationEngine;
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.ServiceDependencyCorrelator;
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.ServiceDependencyGraph;
+import com.ananyapraneet.monitoring.aiincidentanalyzer.service.correlation.TemporalCorrelator;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -216,7 +225,9 @@ class RuleBasedIncidentAnalyzerTests {
                         null,
                         null,
                         null,
-                        Map.of()
+                        Map.of(),
+			null,
+			null
                 )
         );
 
@@ -272,5 +283,65 @@ class RuleBasedIncidentAnalyzerTests {
         assertEquals("unknown", analysis.service());
         assertEquals(0.0, analysis.confidence());
         assertFalse(analysis.recommendedRemediation().isEmpty());
+    }
+
+    @Test
+    void shouldAddStage13CorrelationEvidence() {
+
+        AlertEvidence alert = new AlertEvidence(
+                "OrderServiceHighLatency",
+                "firing",
+                "critical",
+                "order-service",
+                "order-service-1",
+                "Order service latency is high",
+                "Order service latency exceeded threshold",
+                "",
+                Map.of(),
+                Instant.parse("2026-09-24T10:00:00Z"),
+                null
+        );
+
+        IncidentContext context = new IncidentContext(
+                "OrderServiceLatency",
+                "HIGH",
+                "order-service",
+                List.of(alert),
+                Map.of(),
+                List.of(),
+                new HealthEvidence("UP", Map.of()),
+                List.of(),
+                List.of()
+        );
+
+        RuleBasedIncidentAnalyzer stage13Analyzer =
+                new RuleBasedIncidentAnalyzer(
+                        new CorrelationEngine(),
+                        new ConfidenceScorer(),
+                        new IncidentContextCorrelationAdapter(
+        			new MultiSignalCorrelationEngine(
+                			new TemporalCorrelator(),
+                			new ServiceDependencyCorrelator(
+                        			new ServiceDependencyGraph()
+                			),
+                			new MetricCorrelator(),
+                			new LogCorrelator()
+        			),
+        			new CorrelatedIncidentMapper()
+			)
+                );
+
+        IncidentAnalysis analysis =
+                stage13Analyzer.analyze(context);
+
+        assertNotNull(analysis);
+
+        assertTrue(
+                analysis.evidence()
+                        .stream()
+                        .anyMatch(evidence ->
+                                "CORRELATION".equals(evidence.type())
+                        )
+        );
     }
 }

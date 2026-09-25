@@ -13,3 +13,10 @@ management:
 
 incident-context:
   base-url: http://incident-context:8090
+
+prometheus:
+  base-url: http://prometheus:9090
+
+anomaly:
+  historical-window-minutes: 30
+  step-seconds: 60

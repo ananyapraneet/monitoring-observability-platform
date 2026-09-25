@@ -3,14 +3,17 @@ package com.ananyapraneet.monitoring.incidentcontext.service;
 import com.ananyapraneet.monitoring.incidentcontext.health.HealthClient;
 import com.ananyapraneet.monitoring.incidentcontext.http.HttpErrorClient;
 import com.ananyapraneet.monitoring.incidentcontext.log.LogClient;
+import com.ananyapraneet.monitoring.incidentcontext.log.StructuredLogClient;
 import com.ananyapraneet.monitoring.incidentcontext.metrics.PrometheusClient;
 import com.ananyapraneet.monitoring.incidentcontext.model.HealthEvidence;
 import com.ananyapraneet.monitoring.incidentcontext.model.HttpErrorEvidence;
 import com.ananyapraneet.monitoring.incidentcontext.model.IncidentContext;
 import com.ananyapraneet.monitoring.incidentcontext.model.LogEvidence;
+import com.ananyapraneet.monitoring.incidentcontext.store.InMemoryLogEvidenceStore;
+import com.ananyapraneet.monitoring.incidentcontext.store.LogEvidenceStore;
+import com.ananyapraneet.monitoring.incidentcontext.timeline.TimelineBuilder;
 import com.ananyapraneet.monitoring.incidentcontext.webhook.AlertmanagerAlert;
 import com.ananyapraneet.monitoring.incidentcontext.webhook.AlertmanagerWebhookRequest;
-import com.ananyapraneet.monitoring.incidentcontext.timeline.TimelineBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -20,6 +23,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IncidentContextBuilderTests {
 
@@ -251,7 +255,6 @@ class IncidentContextBuilderTests {
                 "LOG_EVENT",
                 context.timeline().get(2).type()
         );
-
     }
 
     @Test
@@ -343,6 +346,107 @@ class IncidentContextBuilderTests {
         assertEquals(
                 0,
                 context.logs().size()
+        );
+    }
+
+    @Test
+    void shouldIncludeIngestedLogsWhenBuildingIncidentContext() {
+
+        LogEvidenceStore logEvidenceStore =
+                new InMemoryLogEvidenceStore();
+
+        StructuredLogClient structuredLogClient =
+                new StructuredLogClient(logEvidenceStore);
+
+        LogEvidence ingestedLog = new LogEvidence(
+                Instant.parse("2026-09-25T12:00:00Z"),
+                "ERROR",
+                "order-service",
+                "stage-15-10-request",
+                "Failed to acquire database connection",
+                "java.sql.SQLTransientConnectionException"
+        );
+
+        logEvidenceStore.add(ingestedLog);
+
+        IncidentContextBuilder builder =
+                new IncidentContextBuilder(
+                        normalizer,
+                        prometheusClient,
+                        healthClient,
+                        httpErrorClient,
+                        structuredLogClient,
+                        timelineBuilder
+                );
+
+        AlertmanagerAlert alert = new AlertmanagerAlert(
+                "firing",
+                Map.of(
+                        "alertname", "DatabaseConnectionPoolExhausted",
+                        "severity", "critical",
+                        "service", "order-service",
+                        "environment", "local",
+                        "instance", "order-service:8081"
+                ),
+                Map.of(
+                        "summary", "Database connection pool exhausted"
+                ),
+                Instant.parse("2026-09-25T12:00:00Z"),
+                Instant.parse("0001-01-01T00:00:00Z"),
+                "http://prometheus:9090/graph",
+                "stage-15-10-alert"
+        );
+
+        AlertmanagerWebhookRequest request =
+                new AlertmanagerWebhookRequest(
+                        "default",
+                        "firing",
+                        "{}",
+                        "0",
+                        List.of(alert)
+                );
+
+        IncidentContext context =
+                builder.build(request);
+
+        assertNotNull(context);
+        assertNotNull(context.logs());
+
+        assertEquals(
+                1,
+                context.logs().size()
+        );
+
+        assertEquals(
+                "ERROR",
+                context.logs().get(0).level()
+        );
+
+        assertEquals(
+                "order-service",
+                context.logs().get(0).service()
+        );
+
+        assertEquals(
+                "stage-15-10-request",
+                context.logs().get(0).requestId()
+        );
+
+        assertEquals(
+                "Failed to acquire database connection",
+                context.logs().get(0).message()
+        );
+
+        assertEquals(
+                "java.sql.SQLTransientConnectionException",
+                context.logs().get(0).exception()
+        );
+
+        assertTrue(
+                context.timeline().stream()
+                        .anyMatch(event ->
+                                "LOG_EVENT".equals(event.type())
+                        )
         );
     }
 }

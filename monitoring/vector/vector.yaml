@@ -1,0 +1,59 @@
+data_dir: /var/lib/vector
+
+sources:
+  docker_logs:
+    type: docker_logs
+    include_containers:
+      - monitoring-order-service
+      - monitoring-user-service
+      - monitoring-api-gateway
+
+transforms:
+  parse_application_logs:
+    type: remap
+    inputs:
+      - docker_logs
+    source: |
+      parsed, err = parse_json(string!(.message))
+
+      if err != null {
+        abort
+      }
+
+      if !exists(parsed.timestamp) ||
+         !exists(parsed.level) ||
+         !exists(parsed.service) ||
+         !exists(parsed.message) {
+        abort
+      }
+
+      .timestamp = parsed.timestamp
+      .level = parsed.level
+      .service = parsed.service
+      .requestId = parsed.requestId
+      .message = parsed.message
+      .exception = parsed.exception
+
+      del(.container_created_at)
+      del(.container_id)
+      del(.container_name)
+      del(.host)
+      del(.image)
+      del(.source_type)
+      del(.stream)
+
+sinks:
+  incident_context:
+    type: http
+    inputs:
+      - parse_application_logs
+    uri: http://incident-context:8090/api/v1/logs
+    method: post
+    encoding:
+      codec: json
+    batch:
+      max_events: 1
+      timeout_secs: 1
+    request:
+      headers:
+        content-type: application/json

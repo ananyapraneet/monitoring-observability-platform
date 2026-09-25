@@ -205,11 +205,29 @@ services:
     networks:
       - monitoring-network
 
+  vector:
+    image: timberio/vector:latest-alpine
+    container_name: monitoring-vector
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./monitoring/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - vector-data:/var/lib/vector
+    command:
+      - "--config"
+      - "/etc/vector/vector.yaml"
+    depends_on:
+      incident-context:
+        condition: service_healthy
+    networks:
+      - monitoring-network
+
 volumes:
   postgres-data:
   prometheus-data:
   grafana-data:
   alertmanager-data:
+  vector-data:
 
 networks:
   monitoring-network:
